@@ -1,4 +1,25 @@
-#include "../types.h"
+#include "diablo.h"
+#include "../3rdParty/Storm/Source/storm.h"
+
+DEVILUTION_BEGIN_NAMESPACE
+
+extern float leftStickX;
+extern float leftStickY;
+extern float rightStickX;
+extern float rightStickY;
+extern float leftTrigger;
+extern float rightTrigger;
+extern float deadzoneX;
+extern float deadzoneY;
+extern int doAttack;
+extern int doUse;
+extern int doChar;
+
+#define INV_TOP 240;
+#define INV_LEFT 350;
+#define INV_HEIGHT 320;
+#define DISPLAY_HEIGHT 360;
+#define DISPLAY_WIDTH 640;
 
 // JAKE: My functions for movement and interaction via keyboard/controller
 bool newCurHidden = false;
@@ -35,7 +56,7 @@ coords checkNearbyObjs(int x, int y, int diff)
 	return { -1, -1 };
 }
 
-void __fastcall checkItemsNearby(bool interact)
+void checkItemsNearby(bool interact)
 {
 	for (int i = 0; i < MAXITEMS; i++) {
 		if (checkNearbyObjs(item[i]._ix, item[i]._iy, 1).x != -1 && item[i]._iSelFlag > 0 && item[i]._itype > -1) {
@@ -45,7 +66,6 @@ void __fastcall checkItemsNearby(bool interact)
 			if (interact) {
 				//sprintf(tempstr, "FOUND NEARBY ITEM AT X:%i Y:%i SEL:%i", item[i]._ix, item[i]._iy, item[i]._iSelFlag);
 				//NetSendCmdString(1 << myplr, tempstr);
-				SetCursorPos(item[i]._ix, item[i]._iy);
 				LeftMouseCmd(false);
 			}
 			return; // item nearby, don't find objects
@@ -68,7 +88,7 @@ void __fastcall checkItemsNearby(bool interact)
 		pcursobj = -1;
 }
 
-void __fastcall checkTownersNearby(bool interact)
+void checkTownersNearby(bool interact)
 {
 	for (int i = 0; i < 16; i++) {
 		if (checkNearbyObjs(towner[i]._tx, towner[i]._ty, 2).x != -1) {
@@ -83,7 +103,7 @@ void __fastcall checkTownersNearby(bool interact)
 	}
 }
 
-bool __fastcall checkMonstersNearby(bool attack)
+bool checkMonstersNearby(bool attack)
 {
 	int closest = 0;                 // monster ID who is closest
 	coords objDistLast = { 99, 99 }; // previous obj distance
@@ -91,7 +111,7 @@ bool __fastcall checkMonstersNearby(bool attack)
 		int d_monster = dMonster[monster[i]._mx][monster[i]._my];
 		if (monster[i]._mFlags & MFLAG_HIDDEN || monster[i]._mhitpoints <= 0) // monster is hiding or dead, skip
 			continue;
-		if (d_monster && dFlags[monster[i]._mx][monster[i]._my] & DFLAG_LIT) {                                                                          // is monster visible
+		if (d_monster && dFlags[monster[i]._mx][monster[i]._my] & BFLAG_LIT) {                                                                          // is monster visible
 			if (monster[i].MData->mSelFlag & 1 || monster[i].MData->mSelFlag & 2 || monster[i].MData->mSelFlag & 3 || monster[i].MData->mSelFlag & 4) { // is monster selectable
 				coords objDist = checkNearbyObjs(monster[i]._mx, monster[i]._my, 6);
 				if (objDist.x > -1 && objDist.x <= objDistLast.x && objDist.y <= objDistLast.y) {
@@ -154,10 +174,10 @@ void attrIncBtnSnap(int key)
 	int slot = 0;
 	for (int i = 0; i < 4; i++) {
 		// 0 = x, 1 = y, 2 = width, 3 = height
-		if (MouseX >= attribute_inc_rects[i][0]
-		    && MouseX <= attribute_inc_rects[i][0] + attribute_inc_rects[i][2]
-		    && MouseY >= attribute_inc_rects[i][1]
-		    && MouseY <= attribute_inc_rects[i][3] + attribute_inc_rects[i][1]) {
+		if (MouseX >= attribute_inc_rects2[i][0]
+		    && MouseX <= attribute_inc_rects2[i][0] + attribute_inc_rects2[i][2]
+		    && MouseY >= attribute_inc_rects2[i][1]
+		    && MouseY <= attribute_inc_rects2[i][3] + attribute_inc_rects2[i][1]) {
 			slot = i;
 			break;
 		}
@@ -173,8 +193,8 @@ void attrIncBtnSnap(int key)
 	}
 
 	// move cursor to our new location
-	int x = attribute_inc_rects[slot][0] + (attribute_inc_rects[slot][2] / 2);
-	int y = attribute_inc_rects[slot][1] + (attribute_inc_rects[slot][3] / 2);
+	int x = attribute_inc_rects2[slot][0] + (attribute_inc_rects2[slot][2] / 2);
+	int y = attribute_inc_rects2[slot][1] + (attribute_inc_rects2[slot][3] / 2);
 	SetCursorPos(x, y);
 }
 
@@ -329,7 +349,6 @@ void invMove(int key)
 	} else
 		SetCursorPos(x, y);
 }
-
 // check if hot spell at X Y exists
 bool HSExists(int x, int y)
 {
@@ -412,8 +431,8 @@ void hotSpellMove(int key)
 	if (x > 0 && y > 0)
 		SetCursorPos(x, y);
 }
-
 // walk in the direction specified
+
 void walkInDir(int dir)
 {
 	if (invflag || spselflag || chrflag) // don't walk if inventory, speedbook or char info windows are open
@@ -428,7 +447,6 @@ void walkInDir(int dir)
 	HideCursor();
 	plr[myplr].walkpath[0] = dir;
 }
-
 static DWORD menuopenslow;
 void useBeltPotion(bool mana)
 {
@@ -447,8 +465,7 @@ void useBeltPotion(bool mana)
 		}
 	}
 }
-
-void __fastcall keyboardExpension()
+void keyboardExpension()
 {
 	static DWORD opentimer;
 	static DWORD clickinvtimer;
@@ -459,8 +476,8 @@ void __fastcall keyboardExpension()
 		return;
 	if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
 		return;
-	if (GetAsyncKeyState(VK_SPACE) & 0x8000) { // similar to X button on PS1 ccontroller. Talk to towners, click on inv items, attack.
-		if (invflag) {                         // inventory is open
+	if (GetAsyncKeyState(VK_SPACE) & 0x8000 || doAttack) { // similar to X button on PS1 ccontroller. Talk to towners, click on inv items, attack.
+		if (invflag) {                                     // inventory is open
 			if (ticks - clickinvtimer >= 300) {
 				clickinvtimer = ticks;
 				if (pcurs == CURSOR_IDENTIFY)
@@ -476,10 +493,10 @@ void __fastcall keyboardExpension()
 			if (ticks - statuptimer >= 400) {
 				statuptimer = ticks;
 				for (int i = 0; i < 4; i++) {
-					if (MouseX >= attribute_inc_rects[i][0]
-					    && MouseX <= attribute_inc_rects[i][0] + attribute_inc_rects[i][2]
-					    && MouseY >= attribute_inc_rects[i][1]
-					    && MouseY <= attribute_inc_rects[i][3] + attribute_inc_rects[i][1]) {
+					if (MouseX >= attribute_inc_rects2[i][0]
+					    && MouseX <= attribute_inc_rects2[i][0] + attribute_inc_rects2[i][2]
+					    && MouseY >= attribute_inc_rects2[i][1]
+					    && MouseY <= attribute_inc_rects2[i][3] + attribute_inc_rects2[i][1]) {
 						chrbtn[i] = 1;
 						chrbtnactive = TRUE;
 						ReleaseChrBtns();
@@ -496,7 +513,7 @@ void __fastcall keyboardExpension()
 				}
 			}
 		}
-	} else if (GetAsyncKeyState(VK_RETURN) & 0x8000) { // similar to [] button on PS1 controller. Open chests, doors, pickup items
+	} else if (GetAsyncKeyState(VK_RETURN) & 0x8000 || doUse) { // similar to [] button on PS1 controller. Open chests, doors, pickup items
 		if (!invflag) {
 			HideCursor();
 			if (ticks - opentimer > 300) {
@@ -506,40 +523,33 @@ void __fastcall keyboardExpension()
 		}
 	} else if (GetAsyncKeyState(0x58) & 0x8000) { // x key, similar to /\ button on PS1 controller. Cast spell or use skill.
 
-	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x44) & 0x8000 && GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -0.40 && leftStickX >= 0.40) {
+	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x44) & 0x8000 && GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -0.20 && leftStickX >= 0.20) {
 		walkInDir(WALK_SE);
-	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 && GetAsyncKeyState(0x44) & 0x8000 || leftStickY >= 0.40 && leftStickX >= 0.40) {
+	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 && GetAsyncKeyState(0x44) & 0x8000 || leftStickY >= 0.20 && leftStickX >= 0.20) {
 		walkInDir(WALK_NE);
-	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 && GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x41) & 0x8000 && GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -0.40 && leftStickX <= -0.40) {
+	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 && GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x41) & 0x8000 && GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -0.20 && leftStickX <= -0.20) {
 		walkInDir(WALK_SW);
-	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 && GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 && GetAsyncKeyState(0x41) & 0x8000 || leftStickY >= 0.40 && leftStickX <= -0.40) {
+	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 && GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 && GetAsyncKeyState(0x41) & 0x8000 || leftStickY >= 0.20 && leftStickX <= -0.20) {
 		walkInDir(WALK_NW);
-	} else if (GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 || leftStickY >= 1) {
+	} else if (GetAsyncKeyState(VK_UP) & 0x8000 || GetAsyncKeyState(0x57) & 0x8000 || leftStickY >= 0.8) {
 		invMove(VK_UP);
 		hotSpellMove(VK_UP);
 		attrIncBtnSnap(VK_UP);
 		walkInDir(WALK_N);
-	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 || GetAsyncKeyState(0x44) & 0x8000 || leftStickX >= 1) {
+	} else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 || GetAsyncKeyState(0x44) & 0x8000 || leftStickX >= 0.8) {
 		invMove(VK_RIGHT);
 		hotSpellMove(VK_RIGHT);
 		walkInDir(WALK_E);
-	} else if (GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -1) {
+	} else if (GetAsyncKeyState(VK_DOWN) & 0x8000 || GetAsyncKeyState(0x53) & 0x8000 || leftStickY <= -0.8) {
 		invMove(VK_DOWN);
 		hotSpellMove(VK_DOWN);
 		attrIncBtnSnap(VK_DOWN);
 		walkInDir(WALK_S);
-	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 || GetAsyncKeyState(0x41) & 0x8000 || leftStickX <= -1) {
+	} else if (GetAsyncKeyState(VK_LEFT) & 0x8000 || GetAsyncKeyState(0x41) & 0x8000 || leftStickX <= -0.8) {
 		invMove(VK_LEFT);
 		hotSpellMove(VK_LEFT);
 		walkInDir(WALK_W);
-	} else if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
-		if (newCurHidden) { // show cursor first, before clicking
-			SetCursor_(CURSOR_HAND);
-			newCurHidden = false;
-		} else if (spselflag) {
-			SetSpell();
-		} else {
-			LeftMouseCmd(false);
-		}
 	}
 }
+
+DEVILUTION_END_NAMESPACE
