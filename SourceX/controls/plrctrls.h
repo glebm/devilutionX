@@ -1,11 +1,12 @@
-#pragma once
 #ifndef __PLRCTRLS_H__
 #define __PLRCTRLS_H__
 
-void __fastcall checkTownersNearby(bool interact);
-void __fastcall checkItemsNearby(bool interact);
-void __fastcall keyboardExpension();
-bool __fastcall checkMonstersNearby(bool attack);
+void checkTownersNearby(bool interact);
+void checkItemsNearby(bool interact);
+void keyboardExpansion(int vikey);
+void charMovement();
+void movements(int key);
+bool checkMonstersNearby(bool attack);
 extern bool newCurHidden;
 void invMove(int key);
 void HideCursor();
@@ -21,8 +22,6 @@ extern const InvXY InvRect[73]; // wasn't made public, so I'll add this here fro
 extern DWORD talkwait;
 extern DWORD talktick;
 extern DWORD castwait;
-
-extern bool inmainmenu;
 
 #define INV_TOP 240;
 #define INV_LEFT 350;
