@@ -299,6 +299,20 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		return false;
 	}
 
+    // RG-350 HACKZ. RG-350 kernel does not map these to joystic buttons, so we map them here.
+#if defined(DINGUX) && !defined(USE_SDL1)
+	if (e.type == SDL_KEYDOWN && (e.key.keysym.sym == SDLK_PAGEUP || e.key.keysym.sym == SDLK_PAGEDOWN)) {
+		e.type = SDL_CONTROLLERAXISMOTION;
+		e.caxis.axis = (e.key.keysym.sym == SDLK_PAGEUP) ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT;
+		e.caxis.value = 1;
+	} else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
+		if (e.key.keysym.sym == SDLK_KP_PERIOD || e.key.keysym.sym == SDLK_KP_DIVIDE) {
+			e.type = (e.type == SDL_KEYUP) ? SDL_CONTROLLERBUTTONUP : SDL_CONTROLLERBUTTONDOWN;
+			e.cbutton.button = e.key.keysym.sym == SDLK_KP_DIVIDE ? SDL_CONTROLLER_BUTTON_LEFTSTICK : SDL_CONTROLLER_BUTTON_RIGHTSTICK;
+		}
+	}
+#endif
+
 	lpMsg->hwnd = hWnd;
 	lpMsg->message = 0;
 	lpMsg->lParam = 0;
