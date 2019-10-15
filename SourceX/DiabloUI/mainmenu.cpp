@@ -28,7 +28,7 @@ void UiMainMenuSelect(int value)
 
 void mainmenu_Esc()
 {
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	UiMainMenuSelect(MAINMENU_EXIT_DIABLO);
 #endif
 }

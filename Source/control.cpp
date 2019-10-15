@@ -840,7 +840,7 @@ void DoSpeedBook()
 	yo = 495;
 	X = 600;
 	Y = 307;
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	int ssx = 600;
 	int ssy = 307;
 #else
@@ -869,7 +869,7 @@ void DoSpeedBook()
 						X = xo - 36;
 						Y = yo - 188;
 					}
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 					// JAKE: here's speedspell images. Store them into our array
 					ssx = xo - 36;
 					ssy = yo - 188;
@@ -892,12 +892,12 @@ void DoSpeedBook()
 				yo -= 56;
 			}
 		}
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	}
 #endif
 
 	SetCursorPos(X, Y);
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	MouseX = X;
 	MouseY = Y;
 #endif
@@ -2161,7 +2161,7 @@ BOOL control_presskeys(int vkey)
 			ret = FALSE;
 		} else {
 			if (vkey == VK_SPACE) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 				control_press_enter();
 #endif
 			} else if (vkey == VK_ESCAPE) {

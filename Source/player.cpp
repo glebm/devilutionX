@@ -3223,7 +3223,7 @@ void CheckNewPath(int pnum)
 				i = plr[pnum].destParam1;
 				x = abs(plr[pnum].WorldX - item[i]._ix);
 				y = abs(plr[pnum].WorldY - item[i]._iy);
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 				if (x <= 1 && y <= 1 && pcurs == 1 && !item[i]._iRequest) {
 #else
 				if (x <= 1 && y <= 1 && /*pcurs == 1 &&*/ !item[i]._iRequest) { // JAKE: ignore standard cursor
@@ -3238,7 +3238,7 @@ void CheckNewPath(int pnum)
 				i = plr[pnum].destParam1;
 				x = abs(plr[pnum].WorldX - item[i]._ix);
 				y = abs(plr[pnum].WorldY - item[i]._iy);
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 				if (x <= 1 && y <= 1 && pcurs == 1) {
 #else
 				if (x <= 1 && y <= 1 /*&& pcurs == 1*/) { // JAKE: ignore standard cursor
@@ -3692,7 +3692,7 @@ void CheckPlrSpell()
 		return;
 	}
 
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	if (pcurs != CURSOR_HAND
 	    || MouseY >= PANEL_TOP
 	    || (chrflag && MouseX < 320 || invflag && MouseX > 320)

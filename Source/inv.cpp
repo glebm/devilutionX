@@ -1049,7 +1049,7 @@ void CheckInvPaste(int pnum, int mx, int my)
 	CalcPlrInv(pnum, TRUE);
 	if (pnum == myplr) {
 		if (cn == 1)
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 			SetCursorPos(MouseX + (cursW >> 1), MouseY + (cursH >> 1));
 #else
 			// JAKE: [2] Keep item in the same slot, don't jump it up
@@ -1238,7 +1238,7 @@ void CheckInvCut(int pnum, int mx, int my)
 		if (pnum == myplr) {
 			PlaySFX(IS_IGRAB);
 			SetCursor_(plr[pnum].HoldItem._iCurs + CURSOR_FIRSTITEM);
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 			SetCursorPos(mx - (cursW >> 1), MouseY - (cursH >> 1));
 #else
 			// JAKE: [1] Keep item in the same slot, don't jump it up
@@ -2012,7 +2012,7 @@ BOOL UseScroll()
 {
 	int i;
 
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	if (pcurs != CURSOR_HAND)
 #else
 	if (pcurs > CURSOR_HAND) // JAKE: let no cursor use scrolls too
@@ -2085,7 +2085,7 @@ BOOL UseInvItem(int pnum, int cii)
 
 	if (plr[pnum]._pInvincible && !plr[pnum]._pHitPoints && pnum == myplr)
 		return TRUE;
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	if (pcurs != 1)
 		return TRUE;
 	if (stextflag)
@@ -2183,7 +2183,7 @@ BOOL UseInvItem(int pnum, int cii)
 	} else if (plr[pnum].InvList[c]._iMiscId != IMISC_MAPOFDOOM) {
 		RemoveInvItem(pnum, c);
 	}
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	}
 #endif
 

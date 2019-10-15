@@ -109,7 +109,7 @@ void gamemenu_new_game(BOOL bActivate)
 void gamemenu_quit_game(BOOL bActivate)
 {
 	gamemenu_new_game(bActivate);
-#ifndef SWITCH // JAKE: This will crash the console otherwise, this doesn't seem to fix it though.
+#if !(defined(SWITCH) || defined(DINGUX)) // JAKE: This will crash the console otherwise, this doesn't seem to fix it though.
 	gbRunGameResult = FALSE;
 #endif
 }
@@ -136,7 +136,7 @@ void gamemenu_load_game(BOOL bActivate)
 
 void gamemenu_save_game(BOOL bActivate)
 {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	if (pcurs <= CURSOR_HAND) {
 		SetCursor_(CURSOR_HAND);
 
@@ -164,7 +164,7 @@ void gamemenu_save_game(BOOL bActivate)
 	SetCursor_(CURSOR_HAND);
 	interface_msg_pump();
 	SetWindowProc(saveProc);
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	}
 #endif
 }

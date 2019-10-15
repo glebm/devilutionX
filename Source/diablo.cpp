@@ -647,7 +647,7 @@ BOOL LeftMouseDown(int wParam)
 						CheckSBook();
 					} else if (pcurs >= CURSOR_FIRSTITEM) {
 						if (TryInvPut()) {
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 							NetSendCmdPItem(TRUE, CMD_PUTITEM, cursmx, cursmy);
 #else
 							NetSendCmdPItem(TRUE, CMD_PUTITEM, MouseX, MouseY);
@@ -681,7 +681,7 @@ BOOL LeftMouseCmd(BOOL bShift)
 	/// ASSERT: assert(MouseY < 352); // PANEL_TOP
 
 	if (leveltype == DTYPE_TOWN) {
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 		if (pcursitem != -1 && pcurs == CURSOR_HAND)
 			NetSendCmdLocParam1(TRUE, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
 #else
@@ -694,19 +694,21 @@ BOOL LeftMouseCmd(BOOL bShift)
 			return TRUE;
 	} else {
 		bNear = abs(plr[myplr].WorldX - cursmx) < 2 && abs(plr[myplr].WorldY - cursmy) < 2;
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 		if (pcursitem != -1 && pcurs == CURSOR_HAND && !bShift) {
 #else
 	        char debug[256];
 		sprintf(debug, " bNear = %d, pcurs = %d, object[pcursobj]._oBreak = %d, pcursitem = %d",bNear,pcurs, object[pcursobj]._oBreak, pcursitem);
+#ifdef SWITCH
 		svcOutputDebugString(debug,256);
+#endif
 		if (pcursitem != -1 && pcurs <= CURSOR_HAND && !bShift) { // JAKE: allow no cursor as well
 			cursmx = 320;
 			cursmy = 240;
 #endif
 			NetSendCmdLocParam1(pcurs, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
 		} else if (pcursobj != -1 && (!bShift || bNear && object[pcursobj]._oBreak == 1)) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			cursmx = 320;
 			cursmy = 240;
 #endif
@@ -823,7 +825,7 @@ void RightMouseDown()
 			    || (!sbookflag || MouseX <= 320)
 			        && !TryIconCurs()
 			        && (pcursinvitem == -1 || !UseInvItem(myplr, pcursinvitem))) {
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 				if (pcurs == 1) {
 #else
 				if (pcurs <= 1) { // JAKE: Allow people without cursor to cast spells too
@@ -1014,7 +1016,7 @@ void PressKey(int vkey)
 		} else if (helpflag) {
 			HelpScrollUp();
 		} else if (automapflag) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			if (GetAsyncKeyState(VK_SHIFT) & 0x8000) // JAKE: [1] no move when u move
 #endif
 			AutomapUp();
@@ -1027,7 +1029,7 @@ void PressKey(int vkey)
 		} else if (helpflag) {
 			HelpScrollDown();
 		} else if (automapflag) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			if (GetAsyncKeyState(VK_SHIFT) & 0x8000) // JAKE: [2] no move when u move
 #endif
 			AutomapDown();
@@ -1042,14 +1044,14 @@ void PressKey(int vkey)
 		}
 	} else if (vkey == VK_LEFT) {
 		if (automapflag && !talkflag) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			if (GetAsyncKeyState(VK_SHIFT) & 0x8000) // JAKE: [3] no move when u move
 #endif
 			AutomapLeft();
 		}
 	} else if (vkey == VK_RIGHT) {
 		if (automapflag && !talkflag) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			if (GetAsyncKeyState(VK_SHIFT) & 0x8000) // JAKE: [4] no move when u move
 #endif
 			AutomapRight();
@@ -1057,7 +1059,7 @@ void PressKey(int vkey)
 	} else if (vkey == VK_TAB) {
 		DoAutoMap();
 	} else if (vkey == VK_SPACE) {
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 		if (stextflag) {
 			STextEnter();
 		} else if (questlog) {
@@ -1140,7 +1142,7 @@ void PressChar(int vkey)
 		if (!stextflag) {
 			sbookflag = FALSE;
 			invflag = invflag == 0;
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			// JAKE: Show cursor if inventory window open, set cursor to inv slot 1
 			if (newCurHidden) {
 				SetCursor_(CURSOR_HAND);
@@ -1167,7 +1169,7 @@ void PressChar(int vkey)
 		if (!stextflag) {
 			questlog = FALSE;
 			chrflag = !chrflag;
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			if (newCurHidden) {
 				SetCursor_(CURSOR_HAND);
 				newCurHidden = false;
@@ -1176,12 +1178,12 @@ void PressChar(int vkey)
 			if (!chrflag || invflag) {
 				if (MouseX > 160 && MouseY < PANEL_TOP) {
 					SetCursorPos(MouseX - 160, MouseY);
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 					MouseX = MouseX - 160;
 					MouseY = MouseY;
 #endif
 				}
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 			} else {
 				if (!chrbtnactive && plr[myplr]._pStatPts) {
 					int x = attribute_inc_rects2[0][0] + (attribute_inc_rects2[0][2] / 2);
@@ -1193,7 +1195,7 @@ void PressChar(int vkey)
 			} else {
 				if (MouseX < 480 && MouseY < PANEL_TOP) {
 					SetCursorPos(MouseX + 160, MouseY);
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 					MouseX = MouseX + 160;
 					MouseY = MouseY;
 				}
@@ -1217,7 +1219,7 @@ void PressChar(int vkey)
 	case 'z':
 		zoomflag = !zoomflag;
 		return;
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	case 'H': // JAKE: Changed, used to be 'S' and 's'
 	case 'h':
 #else
@@ -1234,7 +1236,7 @@ void PressChar(int vkey)
 			track_repeat_walk(0);
 		}
 		return;
-#ifdef SWITCH
+#if defined(SWITCH) || defined(DINGUX)
 	case 'x':
 	case 'X':
 		// JAKE: Spacebar used to go back, now Z goes back.
@@ -1525,7 +1527,7 @@ void LoadGameLevel(BOOL firstflag, int lvldir)
 		glSeedTbl[currlevel] = setseed;
 
 	music_stop();
-#ifndef SWITCH
+#if !(defined(SWITCH) || defined(DINGUX))
 	SetCursor_(CURSOR_HAND);
 #endif
 	SetRndSeed(glSeedTbl[currlevel]);
