@@ -30,7 +30,7 @@ mkdir -p "${TMP}/root/${PKG_INSTALL_DIR}" "${TMP}/root/${PKG_LOCAL_DIR}"
 cp "$IN" "${TMP}/root/${PKG_INSTALL_DIR}/${PKG_TARGET}.dge"
 cp ../resources/Diablo_32.png "${TMP}/root/${PKG_INSTALL_DIR}/devilutionx.png"
 cp ../resources/CharisSILB.ttf ../resources/LICENSE.CharisSILB.txt "${TMP}/root/${PKG_INSTALL_DIR}"
-cp devilutionx-retrofw.man.txt "${TMP}/root/${PKG_LOCAL_DIR}/devilutionx.man.txt"
+cp devilutionx-retrofw.man.txt "${TMP}/root/${PKG_INSTALL_DIR}/devilutionx.man.txt"
 cp diablo.ini "${TMP}/root/${PKG_LOCAL_DIR}/diablo.ini"
 mkdir -p "${TMP}/root/$(dirname "$PKG_MENU_LNK_OUT")"
 printf "%s\n" \

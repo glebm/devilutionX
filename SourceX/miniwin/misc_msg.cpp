@@ -5,6 +5,7 @@
 #include "stubs.h"
 #include <math.h>
 #include "../../touch/touch.h"
+#include "./kbctrl.h"
 #ifdef SWITCH
 	#include <switch.h>
 #endif
@@ -488,6 +489,64 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		break;
 	case SDL_KEYDOWN:
 	case SDL_KEYUP: {
+#ifdef HAS_KBCTRL
+		const bool isModifierKey = SDL_GetKeyState(nullptr)[KBCTRL_MODIFIER_KEY];
+		switch(e.key.keysym.sym) {
+		case KBCTRL_BUTTON_B:
+		case KBCTRL_BUTTON_Y:
+		case KBCTRL_BUTTON_LEFTSHOULDER:
+		case KBCTRL_BUTTON_RIGHTSHOULDER:
+		case KBCTRL_BUTTON_START:
+		case KBCTRL_BUTTON_BACK:
+		    if (isModifierKey) {
+				if (e.key.keysym.sym == KBCTRL_BUTTON_LEFTSHOULDER) {
+					useBeltPotion(false);
+				} else if (e.key.keysym.sym == KBCTRL_BUTTON_RIGHTSHOULDER) {
+					useBeltPotion(true);
+				}
+				break;
+			}
+			lpMsg->message = e.type == SDL_KEYUP ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
+			lpMsg->wParam = (DWORD)translate_kbctrl_to_key(e.key.keysym);
+			break;
+		case KBCTRL_BUTTON_DPAD_UP:
+		case KBCTRL_BUTTON_DPAD_DOWN:
+		case KBCTRL_BUTTON_DPAD_LEFT:
+		case KBCTRL_BUTTON_DPAD_RIGHT:
+			lpMsg->message = e.type == SDL_KEYUP ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
+			lpMsg->wParam = (DWORD)translate_kbctrl_to_key(e.key.keysym);
+			if (lpMsg->message == DVL_WM_KEYDOWN) {
+				if (!stextflag && !isModifierKey) // prevent walking while in dialog mode / modifier key
+					movements(lpMsg->wParam);
+			}
+			break;
+		case KBCTRL_BUTTON_A:
+			lpMsg->message = e.type == SDL_KEYUP ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
+			lpMsg->wParam = (DWORD)translate_kbctrl_to_key(e.key.keysym);
+			if (lpMsg->message == DVL_WM_KEYDOWN) {
+				if (stextflag)
+					talkwait = GetTickCount(); // JAKE: Wait before we re-initiate talking
+				keyboardExpansion(lpMsg->wParam);
+			}
+			break;
+		case KBCTRL_BUTTON_X:
+			if (invflag) {
+				lpMsg->message = e.type == SDL_KEYUP ? DVL_WM_RBUTTONUP : DVL_WM_RBUTTONDOWN;
+				lpMsg->lParam = (MouseY << 16) | (MouseX & 0xFFFF);
+				if (lpMsg->message == DVL_WM_RBUTTONDOWN) {
+					lpMsg->wParam = keystate_for_mouse(DVL_MK_RBUTTON);
+				} else {
+					lpMsg->wParam = keystate_for_mouse(0);
+				}
+			} else {
+				lpMsg->message = e.type == SDL_KEYUP ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
+				lpMsg->wParam = (DWORD)translate_kbctrl_to_key(e.key.keysym);
+				if (lpMsg->message == DVL_WM_KEYDOWN)
+					keyboardExpansion(lpMsg->wParam);
+			}
+			break;
+		default: {
+#endif
 		int key = translate_sdl_key(e.key.keysym);
 		if (key == -1)
 			return false_avail();
@@ -495,6 +554,11 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		lpMsg->wParam = (DWORD)key;
 		// HACK: Encode modifier in lParam for TranslateMessage later
 		lpMsg->lParam = e.key.keysym.mod << 16;
+#ifdef HAS_KBCTRL
+			break;
+		}
+		}
+#endif
 	} break;
 	case SDL_MOUSEMOTION:
 		if (pcurs == CURSOR_NONE) {
