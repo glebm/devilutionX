@@ -184,8 +184,8 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 	};
 	SDL_Rect dst_rect = {
 		static_cast<decltype(SDL_Rect().x)>(dwX) / 2,
-		static_cast<decltype(SDL_Rect().y)>(dwY) / 2,
-		w / 2, h / 2
+		static_cast<decltype(SDL_Rect().y)>(dwY),
+		w / 2, h
 	};
 
 	// Convert from 8-bit to 32-bit

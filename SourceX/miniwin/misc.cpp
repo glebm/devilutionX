@@ -149,7 +149,7 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 	if (fullscreen)
 		flags |= SDL_FULLSCREEN;
 	SDL_WM_SetCaption(lpWindowName, WINDOW_ICON_NAME);
-	SDL_SetVideoMode(320, 240, /*bpp=*/0, flags); // LDK Hack
+	SDL_SetVideoMode(320, 480, /*bpp=*/0, flags); // LDK Hack
 	window = SDL_GetVideoSurface();
 	if (grabInput)
 		SDL_WM_GrabInput(SDL_GRAB_ON);
