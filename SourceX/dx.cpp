@@ -183,15 +183,18 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 		w, h
 	};
 	SDL_Rect dst_rect = {
-		static_cast<decltype(SDL_Rect().x)>(dwX),
-		static_cast<decltype(SDL_Rect().y)>(dwY),
-		w, h
+		static_cast<decltype(SDL_Rect().x)>(dwX) / 2,
+		static_cast<decltype(SDL_Rect().y)>(dwY) / 2,
+		w / 2, h / 2
 	};
 
 	// Convert from 8-bit to 32-bit
-	if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+	SDL_Surface *tmp = SDL_ConvertSurface(pal_surface, GetOutputSurface()->format, 0);
+	if (SDL_BlitScaled(tmp, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+		SDL_FreeSurface(tmp);
 		ErrSdl();
 	}
+	SDL_FreeSurface(tmp);
 
 	bufferUpdated = true;
 }

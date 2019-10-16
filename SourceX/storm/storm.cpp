@@ -708,10 +708,10 @@ BOOL SVidPlayContinue(void)
 		const int scaledH = SVidHeight * factor;
 
 		SDL_Rect pal_surface_offset = {
-			static_cast<decltype(SDL_Rect().x)>((SCREEN_WIDTH - scaledW) / 2),
-			static_cast<decltype(SDL_Rect().y)>((SCREEN_HEIGHT - scaledH) / 2),
-			static_cast<decltype(SDL_Rect().w)>(scaledW),
-			static_cast<decltype(SDL_Rect().h)>(scaledH)
+			static_cast<decltype(SDL_Rect().x)>((SCREEN_WIDTH - scaledW) / 2) / 2,
+			static_cast<decltype(SDL_Rect().y)>((SCREEN_HEIGHT - scaledH) / 2) / 2,
+			static_cast<decltype(SDL_Rect().w)>(scaledW) / 2,
+			static_cast<decltype(SDL_Rect().h)>(scaledH) / 2
 		};
 #ifdef USE_SDL1
 		SDL_Surface *tmp = SDL_ConvertSurface(SVidSurface, window->format, 0);
