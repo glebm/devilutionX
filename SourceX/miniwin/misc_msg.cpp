@@ -7,6 +7,7 @@
 #include "controls/controller_motion.h"
 #include "controls/game_controls.h"
 #include "controls/plrctrls.h"
+#include "miniwin/ddraw.h"
 
 /** @file
  * *
@@ -374,6 +375,14 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		lpMsg->message = DVL_WM_QUIT;
 		return true;
 	}
+
+#ifdef USE_SDL1
+	if (e.type == SDL_MOUSEMOTION) {
+		OutputToLogical(&e.motion.x, &e.motion.y);
+	} else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+		OutputToLogical(&e.button.x, &e.button.y);
+	}
+#endif
 
 	if (movie_playing) {
 		if (ShouldSkipMovie(e))
