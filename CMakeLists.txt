@@ -219,6 +219,7 @@ add_library(devilution STATIC
   Source/wave.cpp)
 
 set(devilutionx_SRCS
+  SourceX/utils.cpp
   SourceX/dx.cpp
   SourceX/miniwin/ddraw.cpp
   SourceX/miniwin/misc.cpp
