@@ -14,6 +14,8 @@
 
 #include "DiabloUI/diabloui.h"
 
+#include "utils.h"
+
 namespace dvl {
 
 DWORD nLastError = 0;
@@ -706,13 +708,25 @@ BOOL SVidPlayContinue(void)
 		}
 		const int scaledW = SVidWidth * factor;
 		const int scaledH = SVidHeight * factor;
+		
+		int newX;
+		int newW;
+		
+		if (GFX_IsRetroFW20()) {
+			newX = (SCREEN_WIDTH - scaledW) / 2;
+			newW = scaledW;
+		} else {
+			newX = (SCREEN_WIDTH - scaledW) / 2 / 2;
+			newW = scaledW / 2;			
+		}
 
 		SDL_Rect pal_surface_offset = {
-			static_cast<decltype(SDL_Rect().x)>((SCREEN_WIDTH - scaledW) / 2),
+			static_cast<decltype(SDL_Rect().x)>(newX),
 			static_cast<decltype(SDL_Rect().y)>((SCREEN_HEIGHT - scaledH) / 2),
-			static_cast<decltype(SDL_Rect().w)>(scaledW),
+			static_cast<decltype(SDL_Rect().w)>(newW),
 			static_cast<decltype(SDL_Rect().h)>(scaledH)
 		};
+
 #ifdef USE_SDL1
 		SDL_Surface *tmp = SDL_ConvertSurface(SVidSurface, window->format, 0);
 		// NOTE: Consider resolution switching instead if video doesn't play

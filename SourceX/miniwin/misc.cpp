@@ -12,6 +12,8 @@
 #define strncasecmp _strnicmp
 #endif
 
+#include "utils.h"
+
 namespace dvl {
 
 DWORD last_error;
@@ -149,7 +151,11 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 	if (fullscreen)
 		flags |= SDL_FULLSCREEN;
 	SDL_WM_SetCaption(lpWindowName, WINDOW_ICON_NAME);
-	SDL_SetVideoMode(nWidth, nHeight, /*bpp=*/0, flags);
+	if (GFX_IsRetroFW20()) {
+		SDL_SetVideoMode(nWidth, nHeight, /*bpp=*/0, flags);
+	} else {
+		SDL_SetVideoMode(320, 480, /*bpp=*/0, flags); // LDK Hack
+	}		
 	window = SDL_GetVideoSurface();
 	if (grabInput)
 		SDL_WM_GrabInput(SDL_GRAB_ON);

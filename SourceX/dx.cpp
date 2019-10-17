@@ -4,6 +4,8 @@
 #include "miniwin/com_macro.h"
 #include <SDL.h>
 
+#include "utils.h"
+
 namespace dvl {
 
 int sgdwLockCount;
@@ -182,17 +184,33 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 		static_cast<decltype(SDL_Rect().y)>(lpSrcRect->top),
 		w, h
 	};
-	SDL_Rect dst_rect = {
-		static_cast<decltype(SDL_Rect().x)>(dwX),
-		static_cast<decltype(SDL_Rect().y)>(dwY),
-		w, h
-	};
-
-	// Convert from 8-bit to 32-bit
-	if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
-		ErrSdl();
+	
+	if (GFX_IsRetroFW20()) {
+		SDL_Rect dst_rect = {
+			static_cast<decltype(SDL_Rect().x)>(dwX),
+			static_cast<decltype(SDL_Rect().y)>(dwY),
+			w, h
+		};
+		
+		// Convert from 8-bit to 32-bit
+		if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+			ErrSdl();
+		}
+		
+	} else {
+		SDL_Rect dst_rect = {
+			static_cast<decltype(SDL_Rect().x)>(dwX) / 2,
+			static_cast<decltype(SDL_Rect().y)>(dwY),
+			w / 2, h
+		};		
+		// Convert from 8-bit to 32-bit
+		SDL_Surface *tmp = SDL_ConvertSurface(pal_surface, GetOutputSurface()->format, 0);
+		if (SDL_BlitScaled(tmp, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+			SDL_FreeSurface(tmp);
+			ErrSdl();
+		}
+		SDL_FreeSurface(tmp);		
 	}
-
 	bufferUpdated = true;
 }
 
