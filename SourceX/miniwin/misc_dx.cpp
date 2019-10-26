@@ -1,7 +1,7 @@
 #include "devilution.h"
+#include "controls/controller_motion.h"
 #include "miniwin/ddraw.h"
 #include "stubs.h"
-#include <SDL.h>
 
 namespace dvl {
 
@@ -24,6 +24,8 @@ WINBOOL SetCursorPos(int X, int Y)
 #endif
 
 	SDL_WarpMouseInWindow(window, X, Y);
+	MouseX = X;
+	MouseY = Y;
 	return true;
 }
 

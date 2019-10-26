@@ -3684,7 +3684,9 @@ void CheckPlrSpell()
 		return;
 	}
 
-	if (pcurs != CURSOR_HAND
+	// Controller support: Allow casting without the cursor
+	// if (pcurs != CURSOR_HAND
+	if (pcurs > CURSOR_HAND
 	    || MouseY >= PANEL_TOP
 	    || (chrflag && MouseX < 320 || invflag && MouseX > RIGHT_PANEL)
 	        && rspell != SPL_HEAL

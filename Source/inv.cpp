@@ -1999,7 +1999,9 @@ BOOL UseScroll()
 {
 	int i;
 
-	if (pcurs != CURSOR_HAND)
+	// Controller support: Allow using scrolls without the cursor
+	// if (pcurs != CURSOR_HAND)
+	if (pcurs > CURSOR_HAND)
 		return FALSE;
 	if (leveltype == DTYPE_TOWN && !spelldata[plr[myplr]._pRSpell].sTownSpell)
 		return FALSE;
