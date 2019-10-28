@@ -1679,7 +1679,9 @@ void game_loop(BOOL bStartup)
 	}
 }
 
-extern void plrctrls_game_logic();
+
+// Controller support:
+extern void plrctrls_after_game_logic();
 
 void game_logic()
 {
@@ -1727,7 +1729,7 @@ void game_logic()
 	force_redraw |= 1;
 	pfile_update(FALSE);
 
-	plrctrls_game_logic();
+	plrctrls_after_game_logic();
 }
 
 void timeout_cursor(BOOL bTimeout)

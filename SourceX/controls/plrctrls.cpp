@@ -579,8 +579,10 @@ void HandleRightStickMotion()
 	}
 }
 
-void plrctrls_game_logic()
+void plrctrls_after_check_curs_move()
 {
+	HandleRightStickMotionAt60Fps();
+
 	// check for monsters first, then towners or objs.
 	if (pcurs <= 0) { // cursor should be missing
 		if (!checkMonstersNearby(false)) {
@@ -591,13 +593,11 @@ void plrctrls_game_logic()
 			pcursitem = -1;
 		}
 	}
-	movement();
-	HandleRightStickMotionAt60Fps();
 }
 
-void plrctrls_event_loop()
+void plrctrls_after_game_logic()
 {
-	HandleRightStickMotionAt60Fps();
+	movement();
 }
 
 void useBeltPotion(bool mana)
