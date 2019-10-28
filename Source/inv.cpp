@@ -2000,7 +2000,6 @@ BOOL UseScroll()
 	int i;
 
 	// Controller support: Allow using scrolls without the cursor
-	// if (pcurs != CURSOR_HAND)
 	if (pcurs > CURSOR_HAND)
 		return FALSE;
 	if (leveltype == DTYPE_TOWN && !spelldata[plr[myplr]._pRSpell].sTownSpell)
@@ -2038,7 +2037,6 @@ void UseStaffCharge(int pnum)
 BOOL UseStaff()
 {
 	// Controller support: Allow using staff without cursor.
-	// if (pcurs == CURSOR_HAND) {
 	if (pcurs <= CURSOR_HAND) {
 		if (plr[myplr].InvBody[INVLOC_HAND_LEFT]._itype != ITYPE_NONE
 		    && plr[myplr].InvBody[INVLOC_HAND_LEFT]._iMiscId == IMISC_STAFF
@@ -2074,7 +2072,6 @@ BOOL UseInvItem(int pnum, int cii)
 		return TRUE;
 
 	// Controller support: Allow using belt items without cursor.
-	// if (pcurs != 1)
 	if (pcurs != 1 && !(cii >= INVITEM_BELT_FIRST && cii <= INVITEM_BELT_LAST))
 		return TRUE;
 	if (stextflag)

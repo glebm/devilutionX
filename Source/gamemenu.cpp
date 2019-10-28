@@ -135,7 +135,6 @@ void gamemenu_load_game(BOOL bActivate)
 void gamemenu_save_game(BOOL bActivate)
 {
 	// Controller support: Allow saving without the cursor
-	// if (pcurs != CURSOR_HAND) {
 	if (pcurs > CURSOR_HAND) {
 		return;
 	}

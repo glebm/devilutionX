@@ -93,8 +93,7 @@ BOOL CheckSpell(int id, int sn, char st, BOOL manaonly)
 #endif
 
 	result = TRUE;
-	// Controller support: Allow spell casting without cursor
-	// if (!manaonly && pcurs != 1) {
+	// Controller support: Allow spellcasting without cursor
 	if (!manaonly && pcurs > 1) {
 		result = FALSE;
 	} else {

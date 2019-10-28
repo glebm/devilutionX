@@ -3686,8 +3686,7 @@ void CheckPlrSpell()
 		return;
 	}
 
-	// Controller support: Allow casting without the cursor
-	// if (pcurs != CURSOR_HAND
+	// Controller support: Allow spellcasting without the cursor
 	if (pcurs > CURSOR_HAND
 	    || MouseY >= PANEL_TOP
 	    || (chrflag && MouseX < 320 || invflag && MouseX > RIGHT_PANEL)
