@@ -2037,7 +2037,9 @@ void UseStaffCharge(int pnum)
 
 BOOL UseStaff()
 {
-	if (pcurs == CURSOR_HAND) {
+	// Controller support: Allow using staff without cursor.
+	// if (pcurs == CURSOR_HAND) {
+	if (pcurs <= CURSOR_HAND) {
 		if (plr[myplr].InvBody[INVLOC_HAND_LEFT]._itype != ITYPE_NONE
 		    && plr[myplr].InvBody[INVLOC_HAND_LEFT]._iMiscId == IMISC_STAFF
 		    && plr[myplr].InvBody[INVLOC_HAND_LEFT]._iSpell == plr[myplr]._pRSpell
