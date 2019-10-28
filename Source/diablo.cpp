@@ -811,7 +811,9 @@ void RightMouseDown()
 			    || (!sbookflag || MouseX <= RIGHT_PANEL)
 			        && !TryIconCurs()
 			        && (pcursinvitem == -1 || !UseInvItem(myplr, pcursinvitem))) {
-				if (pcurs == 1) {
+				// Controller support: Allow casting spells without the cursor
+				// if (pcurs == 1) {
+				if (pcurs <= 1) {
 					if (pcursinvitem == -1 || !UseInvItem(myplr, pcursinvitem))
 						CheckPlrSpell();
 				} else if (pcurs > 1 && pcurs < 12) {
