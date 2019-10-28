@@ -19,7 +19,7 @@
 #define SDLC_KEYSTATE_RIGHT SDLK_RIGHT
 #endif
 
-inline const Uint8 *SDLC_GetKeyboardState()
+inline const Uint8 *SDLC_GetKeyState()
 {
 #ifndef USE_SDL1
 	return SDL_GetKeyboardState(nullptr);
