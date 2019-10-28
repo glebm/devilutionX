@@ -611,7 +611,7 @@ void useBeltPotion(bool mana)
 	menuopenslow = ticks;
 	for (int i = 0; i < MAXBELTITEMS; i++) {
 		const auto id = AllItemsList[plr[myplr].SpdList[i].IDidx].iMiscId;
-		if ((mana && (id == IMISC_HEAL || id == IMISC_FULLHEAL)) || (!mana && (id == IMISC_MANA || id == IMISC_FULLMANA)) || id == IMISC_REJUV || id == IMISC_FULLREJUV) {
+		if ((!mana && (id == IMISC_HEAL || id == IMISC_FULLHEAL)) || (mana && (id == IMISC_MANA || id == IMISC_FULLMANA)) || id == IMISC_REJUV || id == IMISC_FULLREJUV) {
 			if (plr[myplr].SpdList[i]._itype > -1) {
 				invNum = i + INVITEM_BELT_FIRST;
 				UseInvItem(myplr, invNum);
@@ -674,14 +674,14 @@ void performPrimaryAction()
 
 void performSecondaryAction()
 {
+	if (invflag)
+		return;
+	static DWORD opentimer = 0;
+	HideCursor();
 	const DWORD ticks = GetTickCount();
-	if (!invflag) {
-		static DWORD opentimer;
-		HideCursor();
-		if (ticks - opentimer > 500) {
-			opentimer = ticks;
-			checkItemsNearby(true);
-		}
+	if (ticks - opentimer > 500) {
+		opentimer = ticks;
+		checkItemsNearby(true);
 	}
 }
 

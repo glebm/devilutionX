@@ -2070,7 +2070,10 @@ BOOL UseInvItem(int pnum, int cii)
 
 	if (plr[pnum]._pInvincible && !plr[pnum]._pHitPoints && pnum == myplr)
 		return TRUE;
-	if (pcurs != 1)
+
+	// Controller support: Allow using belt items without cursor.
+	// if (pcurs != 1)
+	if (pcurs != 1 && !(cii >= INVITEM_BELT_FIRST && cii <= INVITEM_BELT_LAST))
 		return TRUE;
 	if (stextflag)
 		return TRUE;
