@@ -687,7 +687,8 @@ BOOL LeftMouseCmd(BOOL bShift)
 	/// ASSERT: assert(MouseY < 352); // PANEL_TOP
 
 	if (leveltype == DTYPE_TOWN) {
-		if (pcursitem != -1 && pcurs == CURSOR_HAND)
+		// Controller support: Allow interacting without cursor.
+		if (pcursitem != -1 && pcurs <= CURSOR_HAND)
 			NetSendCmdLocParam1(TRUE, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
 		if (pcursmonst != -1)
 			NetSendCmdLocParam1(TRUE, CMD_TALKXY, cursmx, cursmy, pcursmonst);
@@ -695,7 +696,8 @@ BOOL LeftMouseCmd(BOOL bShift)
 			return TRUE;
 	} else {
 		bNear = abs(plr[myplr].WorldX - cursmx) < 2 && abs(plr[myplr].WorldY - cursmy) < 2;
-		if (pcursitem != -1 && pcurs == CURSOR_HAND && !bShift) {
+		// Controller support: Allow interacting without cursor.
+		if (pcursitem != -1 && pcurs <= CURSOR_HAND && !bShift) {
 			NetSendCmdLocParam1(pcurs, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
 		} else if (pcursobj != -1 && (!bShift || bNear && object[pcursobj]._oBreak == 1)) {
 			NetSendCmdLocParam1(TRUE, pcurs == CURSOR_DISARM ? CMD_DISARMXY : CMD_OPOBJXY, cursmx, cursmy, pcursobj);
