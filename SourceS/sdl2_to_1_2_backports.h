@@ -54,6 +54,7 @@ inline void SDL_Log(const char *fmt, ...)
 	va_start(ap, fmt);
 	vprintf(fmt, ap);
 	va_end(ap);
+	puts("");
 }
 
 static SDL_bool SDLBackport_IsTextInputActive = SDL_FALSE;
