@@ -1,4 +1,5 @@
 // Compatibility wrappers for SDL 1 & 2.
+#pragma once
 #include <SDL.h>
 
 #ifndef USE_SDL1
