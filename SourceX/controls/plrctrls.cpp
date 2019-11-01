@@ -85,6 +85,10 @@ void checkItemsNearby(bool interact)
 
 void checkTownersNearby(bool interact)
 {
+	if (pcursitem != -1)
+		// Items take priority over towners because the player can move
+		// items but not towners.
+		return;
 	for (int i = 0; i < 16; i++) {
 		if (checkNearbyObjs(towner[i]._tx, towner[i]._ty, 2).x != -1) {
 			if (towner[i]._ttype == -1)
@@ -584,12 +588,12 @@ void plrctrls_after_check_curs_move()
 {
 	HandleRightStickMotionAt60Fps();
 
-	// check for monsters first, then towners or objs.
+	// check for monsters first, then items, then towners.
 	if (pcurs <= 0) { // cursor should be missing
 		if (!checkMonstersNearby(false)) {
 			pcursmonst = -1;
-			checkTownersNearby(false);
 			checkItemsNearby(false);
+			checkTownersNearby(false);
 		} else {
 			pcursitem = -1;
 		}
