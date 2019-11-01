@@ -102,7 +102,8 @@ bool checkMonstersNearby(bool attack)
 {
 	int closest = 0;                 // monster ID who is closest
 	coords objDistLast = { 99, 99 }; // previous obj distance
-	for (int i = 0; i < MAXMONSTERS; i++) {
+	// The first MAX_PLRS monsters are reserved for players' golems.
+	for (int i = MAX_PLRS; i < MAXMONSTERS; i++) {
 		int d_monster = dMonster[monster[i]._mx][monster[i]._my];
 		if (monster[i]._mFlags & MFLAG_HIDDEN || monster[i]._mhitpoints <= 0) // monster is hiding or dead, skip
 			continue;
