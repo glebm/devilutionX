@@ -37,7 +37,7 @@ bool InControlledMenu()
 }
 
 // 0 = not near, >0 = distance related player 1 coordinates
-coords checkNearbyObjs(int x, int y, int diff)
+coords CheckNearbyObjs(int x, int y, int diff)
 {
 	int diff_x = abs(plr[myplr]._px - x);
 	int diff_y = abs(plr[myplr]._py - y);
@@ -51,96 +51,80 @@ coords checkNearbyObjs(int x, int y, int diff)
 	return { -1, -1 };
 }
 
-void checkItemsNearby(bool interact)
+void CheckItemsNearby()
 {
 	for (int i = 0; i < MAXITEMS; i++) {
-		if (checkNearbyObjs(item[i]._ix, item[i]._iy, 1).x != -1 && item[i]._iSelFlag > 0 && item[i]._itype > -1) {
+		if (CheckNearbyObjs(item[i]._ix, item[i]._iy, 1).x != -1 && item[i]._iSelFlag > 0 && item[i]._itype > -1) {
 			pcursitem = i;
 			if (dItem[item[i]._ix][item[i]._iy] <= 0)
 				continue;
-			if (interact) {
-				//sprintf(tempstr, "FOUND NEARBY ITEM AT X:%i Y:%i SEL:%i", item[i]._ix, item[i]._iy, item[i]._iSelFlag);
-				//NetSendCmdString(1 << myplr, tempstr);
-				LeftMouseCmd(false);
-			}
 			return; // item nearby, don't find objects
 		}
 	}
-	if (sgbControllerActive)
-		pcursitem = -1;
-	//sprintf(tempstr, "SCANNING FOR OBJECTS");
-	//NetSendCmdString(1 << myplr, tempstr);
+	pcursitem = -1;
+
 	for (int i = 0; i < MAXOBJECTS; i++) {
-		if (checkNearbyObjs(object[i]._ox, object[i]._oy, 1).x != -1 && object[i]._oSelFlag > 0 && object[i]._otype > -1 && currlevel) { // make sure we're in the dungeon to scan for objs
+		if (CheckNearbyObjs(object[i]._ox, object[i]._oy, 1).x != -1 && object[i]._oSelFlag > 0 && object[i]._otype > -1 && currlevel) { // make sure we're in the dungeon to scan for objs
 			pcursobj = i;
-			if (interact) {
-				LeftMouseCmd(false);
-			}
 			return;
 		}
 	}
-	if (sgbControllerActive)
-		pcursobj = -1;
+	pcursobj = -1;
 }
 
-void checkTownersNearby(bool interact)
+void CheckTownersNearby()
 {
 	if (pcursitem != -1)
 		// Items take priority over towners because the player can move
 		// items but not towners.
 		return;
 	for (int i = 0; i < 16; i++) {
-		if (checkNearbyObjs(towner[i]._tx, towner[i]._ty, 2).x != -1) {
+		if (CheckNearbyObjs(towner[i]._tx, towner[i]._ty, 2).x != -1) {
 			if (towner[i]._ttype == -1)
 				continue;
 			pcursmonst = i;
-			if (interact) {
-				TalkToTowner(myplr, i);
-			}
 			break;
 		}
 	}
 }
 
-bool checkMonstersNearby(bool attack)
+void CheckMonstersNearby()
 {
-	int closest = 0;                 // monster ID who is closest
+	pcursmonst = -1;
 	coords objDistLast = { 99, 99 }; // previous obj distance
 	// The first MAX_PLRS monsters are reserved for players' golems.
 	for (int i = MAX_PLRS; i < MAXMONSTERS; i++) {
 		const auto &monst = monster[i];
 		const int mx = monst._mx;
 		const int my = monst._my;
-		if (dMonster[mx][my] == 0 ||
-			(monst._mFlags & MFLAG_HIDDEN) || // hidden
-			monst._mhitpoints <= 0 || // dead
-			!((dFlags[mx][my] & BFLAG_LIT) || plr[myplr]._pInfraFlag)) // invisible
+		if (dMonster[mx][my] == 0 || (monst._mFlags & MFLAG_HIDDEN) || // hidden
+		    monst._mhitpoints <= 0 ||                                  // dead
+		    !((dFlags[mx][my] & BFLAG_LIT) || plr[myplr]._pInfraFlag)) // not visable
 			continue;
 		const char mSelFlag = monst.MData->mSelFlag;
 		if (mSelFlag & 1 || mSelFlag & 2 || mSelFlag & 3 || mSelFlag & 4) { // is monster selectable
-			coords objDist = checkNearbyObjs(mx, my, 6);
+			coords objDist = CheckNearbyObjs(mx, my, 6);
 			if (objDist.x > -1 && objDist.x <= objDistLast.x && objDist.y <= objDistLast.y) {
-				closest = i;
+				pcursmonst = i;
 				objDistLast = objDist;
 			}
 		}
 	}
-	if (closest < MAX_PLRS) { // didn't find a monster
-		pcursmonst = -1;
-		return false;
-	}
-	pcursmonst = closest;
-	//sprintf(tempstr, "NEARBY MONSTER WITH HP:%i", monster[closest]._mhitpoints);
-	//NetSendCmdString(1 << myplr, tempstr);
-	if (attack) {
-		static DWORD attacktick = 0;
-		DWORD ticks = GetTickCount();
-		if (ticks - attacktick > 100) { // prevent accidental double attacks
-			attacktick = ticks;
-			LeftMouseCmd(false);
+}
+
+void Interact()
+{
+	if (leveltype == DTYPE_TOWN && pcursmonst != -1) {
+		NetSendCmdLocParam1(true, CMD_TALKXY, towner[pcursmonst]._tx, towner[pcursmonst]._ty, pcursmonst);
+	} else if (pcursmonst != -1) {
+		if (plr[myplr]._pwtype != WT_RANGED || CanTalkToMonst(pcursmonst)) {
+			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
+		} else {
+			NetSendCmdParam1(true, CMD_RATTACKID, pcursmonst);
 		}
+	} else if (pcursplr != -1 && !FriendlyMode) {
+		NetSendCmdParam1(true, plr[myplr]._pwtype == WT_RANGED ? CMD_RATTACKPID : CMD_ATTACKPID, pcursplr);
 	}
-	return true;
 }
 
 // hide the cursor when we start walking via keyboard/controller
@@ -148,13 +132,12 @@ void HideCursor()
 {
 	if (pcurs >= CURSOR_FIRSTITEM) // drop item to allow us to pick up other items
 		DropItemBeforeTrig();
-	SetCursorPos(SCREEN_WIDTH / 2, PANEL_TOP / 2);
 	if (pcurs == CURSOR_REPAIR || pcurs == CURSOR_RECHARGE)
 		SetCursor_(CURSOR_HAND);
 	sgbControllerActive = true;
 }
 
-void attrIncBtnSnap(int key)
+void AttrIncBtnSnap(int key)
 {
 	if (invflag || spselflag || !chrflag)
 		return;
@@ -163,7 +146,7 @@ void attrIncBtnSnap(int key)
 		return;
 
 	DWORD ticks = GetTickCount();
-	if (ticks - invmove < 80) {
+	if (ticks - invmove < 100) {
 		return;
 	}
 	invmove = ticks;
@@ -193,20 +176,18 @@ void attrIncBtnSnap(int key)
 	int x = ChrBtnsRect[slot].x + (ChrBtnsRect[slot].w / 2);
 	int y = ChrBtnsRect[slot].y + (ChrBtnsRect[slot].h / 2);
 	SetCursorPos(x, y);
-	MouseX = x;
-	MouseY = y;
 }
 
 // move the cursor around in our inventory
 // if mouse coords are at SLOTXY_CHEST_LAST, consider this center of equipment
 // small inventory squares are 29x29 (roughly)
-void invMove(int key)
+void InvMove(MoveDirection dir)
 {
 	if (!invflag)
 		return;
 
 	DWORD ticks = GetTickCount();
-	if (ticks - invmove < 80) {
+	if (ticks - invmove < 100) {
 		return;
 	}
 	invmove = ticks;
@@ -227,7 +208,7 @@ void invMove(int key)
 		slot = SLOTXY_BELT_LAST;
 
 	// when item is on cursor, this is the real cursor XY
-	if (key == WALK_W) {
+	if (dir.x == MoveDirectionX::LEFT) {
 		if (slot >= SLOTXY_HAND_RIGHT_FIRST && slot <= SLOTXY_HAND_RIGHT_LAST) {
 			x = InvRect[SLOTXY_CHEST_FIRST].X + (INV_SLOT_SIZE_PX / 2);
 			y = InvRect[SLOTXY_CHEST_FIRST].Y - (INV_SLOT_SIZE_PX / 2);
@@ -255,7 +236,7 @@ void invMove(int key)
 				y = InvRect[slot].Y - (INV_SLOT_SIZE_PX / 2);
 			}
 		}
-	} else if (key == WALK_E) {
+	} else if (dir.x == MoveDirectionX::RIGHT) {
 		if (slot == SLOTXY_RING_LEFT) {
 			x = InvRect[SLOTXY_RING_RIGHT].X + (INV_SLOT_SIZE_PX / 2);
 			y = InvRect[SLOTXY_RING_RIGHT].Y - (INV_SLOT_SIZE_PX / 2);
@@ -281,7 +262,8 @@ void invMove(int key)
 				y = InvRect[slot].Y - (INV_SLOT_SIZE_PX / 2);
 			}
 		}
-	} else if (key == WALK_N) {
+	}
+	if (dir.y == MoveDirectionY::UP) {
 		if (slot > 24 && slot <= 27) { // first 3 general slots
 			x = InvRect[SLOTXY_RING_LEFT].X + (INV_SLOT_SIZE_PX / 2);
 			y = InvRect[SLOTXY_RING_LEFT].Y - (INV_SLOT_SIZE_PX / 2);
@@ -315,7 +297,7 @@ void invMove(int key)
 			x = InvRect[slot].X + (INV_SLOT_SIZE_PX / 2);
 			y = InvRect[slot].Y - (INV_SLOT_SIZE_PX / 2);
 		}
-	} else if (key == WALK_S) {
+	} else if (dir.y == MoveDirectionY::DOWN) {
 		if (slot >= SLOTXY_HEAD_FIRST && slot <= SLOTXY_HEAD_LAST) {
 			x = InvRect[SLOTXY_CHEST_FIRST].X + (INV_SLOT_SIZE_PX / 2);
 			y = InvRect[SLOTXY_CHEST_FIRST].Y - (INV_SLOT_SIZE_PX / 2);
@@ -344,14 +326,17 @@ void invMove(int key)
 		}
 	}
 
-	if (pcurs > 1) {     // [3] Keep item in the same slot, don't jump it up
-		if (x != MouseX) // without this, the cursor keeps moving -10
-		{
-			SetCursorPos(x - 10, y - 10);
-		}
-	} else {
-		SetCursorPos(x, y);
+	if (x == MouseX && y == MouseY) {
+		return; // Avoid wobeling when scalled
 	}
+
+	if (pcurs > 1) {       // [3] Keep item in the same slot, don't jump it up
+		if (x != MouseX) { // without this, the cursor keeps moving -10
+			x -= 10;
+			y -= 10;
+		}
+	}
+	SetCursorPos(x, y);
 }
 
 // check if hot spell at X Y exists
@@ -365,7 +350,7 @@ bool HSExists(int x, int y)
 	return false;
 }
 
-void hotSpellMove(int key)
+void HotSpellMove(int key)
 {
 	if (!spselflag)
 		return;
@@ -376,7 +361,7 @@ void hotSpellMove(int key)
 		HideCursor();
 
 	DWORD ticks = GetTickCount();
-	if (ticks - invmove < 80) {
+	if (ticks - invmove < 100) {
 		return;
 	}
 	invmove = ticks;
@@ -436,20 +421,20 @@ void hotSpellMove(int key)
 
 	if (x > 0 && y > 0) {
 		SetCursorPos(x, y);
-		MouseX = x;
-		MouseY = y;
 	}
 }
 
-void walkInDir(MoveDirection dir)
+void WalkInDir(MoveDirection dir)
 {
-	if (dir.x == MoveDirectionX::NONE && dir.y == MoveDirectionY::NONE)
-		return;
-	DWORD ticks = GetTickCount();
-	if (ticks - invmove < 370) {
+	if (dir.x == MoveDirectionX::NONE && dir.y == MoveDirectionY::NONE) {
+		plr[myplr].walkpath[0] = WALK_NONE;
 		return;
 	}
-	invmove = ticks;
+
+	if (plr[myplr].walkpath[0] != WALK_NONE) {
+		return;
+	}
+
 	ClrPlrPath(myplr);                   // clear nodes
 	plr[myplr].destAction = ACTION_NONE; // stop attacking, etc.
 	HideCursor();
@@ -460,37 +445,43 @@ void walkInDir(MoveDirection dir)
 		{ WALK_E, WALK_NE, WALK_SE },  // RIGHT
 	};
 	plr[myplr].walkpath[0] = kMoveToWalkDir[static_cast<std::size_t>(dir.x)][static_cast<std::size_t>(dir.y)];
+	static const direction kFaceDir[3][3] = {
+		// NONE      UP      DOWN
+		{ DIR_OMNI, DIR_N, DIR_S }, // NONE
+		{ DIR_W, DIR_NW, DIR_SW },  // LEFT
+		{ DIR_E, DIR_NE, DIR_SE },  // RIGHT
+	};
+	plr[myplr]._pdir = kFaceDir[static_cast<std::size_t>(dir.x)][static_cast<std::size_t>(dir.y)];
 }
 
-void menuMoveX(MoveDirectionX dir)
+void MenuMoveX(MoveDirectionX dir)
 {
 	if (dir == MoveDirectionX::NONE)
 		return;
-	invMove(dir == MoveDirectionX::LEFT ? WALK_W : WALK_E);
-	hotSpellMove(dir == MoveDirectionX::LEFT ? DVL_VK_LEFT : DVL_VK_RIGHT);
+	HotSpellMove(dir == MoveDirectionX::LEFT ? DVL_VK_LEFT : DVL_VK_RIGHT);
 }
 
-void menuMoveY(MoveDirectionY dir)
+void MenuMoveY(MoveDirectionY dir)
 {
 	if (dir == MoveDirectionY::NONE)
 		return;
-	invMove(dir == MoveDirectionY::UP ? WALK_N : WALK_S);
 	const auto key = dir == MoveDirectionY::UP ? DVL_VK_UP : DVL_VK_DOWN;
-	hotSpellMove(key);
-	attrIncBtnSnap(key);
+	HotSpellMove(key);
+	AttrIncBtnSnap(key);
 }
 
-void movement()
+void Movement()
 {
 	if (InGameMenu())
 		return;
 
 	MoveDirection move_dir = GetMoveDirection();
 	if (InControlledMenu()) {
-		menuMoveX(move_dir.x);
-		menuMoveY(move_dir.y);
+		MenuMoveX(move_dir.x);
+		MenuMoveY(move_dir.y);
+		InvMove(move_dir);
 	} else {
-		walkInDir(move_dir);
+		WalkInDir(move_dir);
 	}
 
 	if (GetAsyncKeyState(DVL_MK_LBUTTON) & 0x8000) {
@@ -501,20 +492,6 @@ void movement()
 		} else {
 			LeftMouseCmd(false);
 		}
-	}
-}
-
-// Move map or mouse no more than 60 times per second.
-// This is called from both the game loop and the event loop for responsiveness.
-void HandleRightStickMotionAt60Fps()
-{
-	static std::int64_t currentTime = 0;
-	static std::int64_t lastTime = 0;
-	currentTime = SDL_GetTicks();
-
-	if (currentTime - lastTime > 15) {
-		HandleRightStickMotion();
-		lastTime = currentTime;
 	}
 }
 
@@ -580,32 +557,31 @@ void HandleRightStickMotion()
 
 void plrctrls_after_check_curs_move()
 {
-	HandleRightStickMotionAt60Fps();
+	HandleRightStickMotion();
 
 	// check for monsters first, then items, then towners.
 	if (sgbControllerActive) { // cursor should be missing
-		if (!checkMonstersNearby(false)) {
-			pcursmonst = -1;
-			checkItemsNearby(false);
-			checkTownersNearby(false);
-		} else {
-			pcursitem = -1;
+		CheckMonstersNearby();
+		pcursitem = -1;
+		if (pcursmonst == -1) {
+			CheckItemsNearby();
+			CheckTownersNearby();
 		}
 	}
 }
 
 void plrctrls_after_game_logic()
 {
-	movement();
+	Movement();
 }
 
-void useBeltPotion(bool mana)
+void UseBeltItem(int type)
 {
 	for (int i = 0; i < MAXBELTITEMS; i++) {
 		const auto id = AllItemsList[plr[myplr].SpdList[i].IDidx].iMiscId;
 		const auto spellId = AllItemsList[plr[myplr].SpdList[i].IDidx].iSpell;
-		if ((!mana && (id == IMISC_HEAL || id == IMISC_FULLHEAL || (id == IMISC_SCROLL && spellId == SPL_HEAL)))
-		    || (mana && (id == IMISC_MANA || id == IMISC_FULLMANA))
+		if ((type == BLT_HEALING && (id == IMISC_HEAL || id == IMISC_FULLHEAL || (id == IMISC_SCROLL && spellId == SPL_HEAL)))
+		    || (type == BLT_MANA && (id == IMISC_MANA || id == IMISC_FULLMANA))
 		    || id == IMISC_REJUV || id == IMISC_FULLREJUV) {
 			if (plr[myplr].SpdList[i]._itype > -1) {
 				UseInvItem(myplr, INVITEM_BELT_FIRST + i);
@@ -615,69 +591,60 @@ void useBeltPotion(bool mana)
 	}
 }
 
-void performPrimaryAction()
+void PerformPrimaryAction()
 {
-	const DWORD ticks = GetTickCount();
 	if (invflag) { // inventory is open
-		static DWORD clickinvtimer;
-		if (ticks - clickinvtimer >= 300) {
-			clickinvtimer = ticks;
-			if (pcurs == CURSOR_IDENTIFY)
-				CheckIdentify(myplr, pcursinvitem);
-			else if (pcurs == CURSOR_REPAIR)
-				DoRepair(myplr, pcursinvitem);
-			else if (pcurs == CURSOR_RECHARGE)
-				DoRecharge(myplr, pcursinvitem);
-			else
-				CheckInvItem();
-		}
-	} else if (spselflag) {
-		SetSpell();
-	} else if (chrflag) {
-		static DWORD statuptimer;
-		if (ticks - statuptimer >= 400) {
-			statuptimer = ticks;
-			if (!chrbtnactive && plr[myplr]._pStatPts) {
-				CheckChrBtns();
-				for (int i = 0; i < 4; i++) {
-					if (MouseX >= ChrBtnsRect[i].x
-					    && MouseX <= ChrBtnsRect[i].x + ChrBtnsRect[i].w
-					    && MouseY >= ChrBtnsRect[i].y
-					    && MouseY <= ChrBtnsRect[i].h + ChrBtnsRect[i].y) {
-						chrbtn[i] = 1;
-						chrbtnactive = true;
-						ReleaseChrBtns();
-					}
-				}
-			}
-			if (plr[myplr]._pStatPts == 0)
-				HideCursor();
-		}
-	} else {
-		static DWORD talkwait;
-		if (stextflag)
-			talkwait = GetTickCount(); // Wait before we re-initiate talking
-		HideCursor();
-		DWORD talktick = GetTickCount();
-		if (!checkMonstersNearby(true)) {
-			if (talktick - talkwait > 600) { // prevent re-entering talk after finished
-				talkwait = talktick;
-				checkTownersNearby(true);
-			}
-		}
+		if (pcurs == CURSOR_IDENTIFY)
+			CheckIdentify(myplr, pcursinvitem);
+		else if (pcurs == CURSOR_REPAIR)
+			DoRepair(myplr, pcursinvitem);
+		else if (pcurs == CURSOR_RECHARGE)
+			DoRecharge(myplr, pcursinvitem);
+		else
+			CheckInvItem();
+		return;
 	}
+
+	if (spselflag) {
+		SetSpell();
+		return;
+	}
+
+	if (chrflag && !chrbtnactive && plr[myplr]._pStatPts) {
+		CheckChrBtns();
+		for (int i = 0; i < 4; i++) {
+			if (MouseX >= ChrBtnsRect[i].x
+			    && MouseX <= ChrBtnsRect[i].x + ChrBtnsRect[i].w
+			    && MouseY >= ChrBtnsRect[i].y
+			    && MouseY <= ChrBtnsRect[i].h + ChrBtnsRect[i].y) {
+				chrbtn[i] = 1;
+				chrbtnactive = true;
+				ReleaseChrBtns();
+			}
+		}
+		return;
+	}
+
+	HideCursor();
+	if (pcursmonst == -1) {
+		CheckTownersNearby();
+	}
+	Interact();
 }
 
-void performSecondaryAction()
+void PerformSecondaryAction()
 {
 	if (invflag)
 		return;
-	static DWORD opentimer = 0;
+
 	HideCursor();
-	const DWORD ticks = GetTickCount();
-	if (ticks - opentimer > 500) {
-		opentimer = ticks;
-		checkItemsNearby(true);
+
+	CheckItemsNearby();
+
+	if (pcursitem != -1 && pcurs == CURSOR_HAND) {
+		NetSendCmdLocParam1(pcurs, CMD_GOTOAGETITEM, item[pcursitem]._ix, item[pcursitem]._iy, pcursitem);
+	} else if (pcursobj != -1) {
+		NetSendCmdLocParam1(true, pcurs == CURSOR_DISARM ? CMD_DISARMXY : CMD_OPOBJXY, object[pcursobj]._ox, object[pcursobj]._oy, pcursobj);
 	}
 }
 

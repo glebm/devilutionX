@@ -229,26 +229,11 @@ void SetMouseLMBMessage(const SDL_Event &event, LPMSG lpMsg)
 		lpMsg->wParam = keystate_for_mouse(lpMsg->message == DVL_WM_LBUTTONUP ? 0 : DVL_MK_LBUTTON);
 }
 
-void ShowCursor()
-{
-	if (sgbControllerActive) {
-		sgbControllerActive = false;
-	}
-}
-
-void HideCursorIfNotNeeded()
-{
-	if (!chrflag && !invflag) {
-		sgbControllerActive = true;
-	}
-}
-
 // Moves the mouse to the first inventory slot.
 bool FocusOnInventory()
 {
 	if (!invflag)
 		return false;
-	ShowCursor();
 	SetCursorPos(InvRect[25].X + (INV_SLOT_SIZE_PX / 2), InvRect[25].Y - (INV_SLOT_SIZE_PX / 2));
 	return true;
 }
@@ -287,7 +272,6 @@ bool FocusOnCharInfo()
 	}
 	if (stat == -1)
 		return false;
-	ShowCursor();
 	const auto &rect = ChrBtnsRect[stat];
 	SetCursorPos(rect.x + (rect.w / 2), rect.y + (rect.h / 2));
 	return true;
@@ -396,20 +380,24 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 
 	GameAction action;
 	if (GetGameAction(e, &action)) {
+		if (action.type != GameActionType::NONE) {
+			sgbControllerActive = true;
+		}
+
 		switch (action.type) {
 		case GameActionType::NONE:
 			break;
 		case GameActionType::USE_HEALTH_POTION:
-			useBeltPotion(/*mana=*/false);
+			UseBeltItem(BLT_HEALING);
 			break;
 		case GameActionType::USE_MANA_POTION:
-			useBeltPotion(/*mana=*/true);
+			UseBeltItem(BLT_MANA);
 			break;
 		case GameActionType::PRIMARY_ACTION:
-			performPrimaryAction();
+			PerformPrimaryAction();
 			break;
 		case GameActionType::SECONDARY_ACTION:
-			performSecondaryAction();
+			PerformSecondaryAction();
 			break;
 		case GameActionType::CAST_SPELL:
 			if (pcurs >= CURSOR_FIRSTITEM && invflag)
@@ -422,12 +410,10 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 			PressEscKey();
 			break;
 		case GameActionType::TOGGLE_QUICK_SPELL_MENU:
-			ShowCursor();
 			lpMsg->message = DVL_WM_KEYDOWN;
 			lpMsg->wParam = 'S';
-			HideCursorIfNotNeeded();
 			StoreSpellCoords();
-			return true;
+			break;
 		case GameActionType::TOGGLE_CHARACTER_INFO:
 			questlog = false;
 			chrflag = !chrflag;
@@ -435,7 +421,6 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 				FocusOnCharInfo();
 			else
 				FocusOnInventory();
-			HideCursorIfNotNeeded();
 			break;
 		case GameActionType::TOGGLE_INVENTORY:
 			if (pcurs >= CURSOR_FIRSTITEM && invflag)
@@ -447,14 +432,13 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 				FocusOnInventory();
 			else
 				FocusOnCharInfo();
-			HideCursorIfNotNeeded();
 			break;
 		case GameActionType::SEND_KEY:
 			lpMsg->message = action.send_key.up ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
 			lpMsg->wParam = action.send_key.vk_code;
 			return true;
 		case GameActionType::SEND_MOUSE_CLICK:
-			ShowCursor();
+			sgbControllerActive = false;
 			switch (action.send_mouse_click.button) {
 			case GameActionSendMouseClick::LEFT:
 				lpMsg->message = action.send_mouse_click.up ? DVL_WM_LBUTTONUP : DVL_WM_LBUTTONDOWN;
@@ -464,9 +448,11 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 				break;
 			}
 			lpMsg->lParam = (MouseY << 16) | (MouseX & 0xFFFF);
-			return true;
+			break;
 		}
 		return true;
+	} else {
+		sgbControllerActive = false;
 	}
 
 	switch (e.type) {
