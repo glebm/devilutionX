@@ -8,6 +8,7 @@ MenuAction GetMenuAction(const SDL_Event &event)
 {
 	const ControllerButtonEvent ctrl_event = ToControllerButtonEvent(event);
 	if (!ctrl_event.up) {
+		sgbControllerActive = true;
 		switch (ctrl_event.button) {
 		case ControllerButton::BUTTON_B: // Right button
 		case ControllerButton::BUTTON_START:

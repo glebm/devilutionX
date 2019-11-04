@@ -230,19 +230,18 @@ void SetMouseLMBMessage(const SDL_Event &event, LPMSG lpMsg)
 }
 
 // Moves the mouse to the first inventory slot.
-bool FocusOnInventory()
+void FocusOnInventory()
 {
 	if (!invflag)
-		return false;
+		return;
 	SetCursorPos(InvRect[25].X + (INV_SLOT_SIZE_PX / 2), InvRect[25].Y - (INV_SLOT_SIZE_PX / 2));
-	return true;
 }
 
 // Moves the mouse to the first attribute "+" button.
-bool FocusOnCharInfo()
+void FocusOnCharInfo()
 {
 	if (!chrflag || plr[myplr]._pStatPts == 0)
-		return false;
+		return;
 
 	// Find the first incrementable stat.
 	int pc = plr[myplr]._pClass;
@@ -271,10 +270,9 @@ bool FocusOnCharInfo()
 		stat = i;
 	}
 	if (stat == -1)
-		return false;
+		return;
 	const auto &rect = ChrBtnsRect[stat];
 	SetCursorPos(rect.x + (rect.w / 2), rect.y + (rect.h / 2));
-	return true;
 }
 
 void StoreSpellCoords()
@@ -326,6 +324,17 @@ void StoreSpellCoords()
 }
 
 } // namespace
+
+/**
+ * @brief Clean the inventory related cursor states.
+ */
+void BlurInventory()
+{
+	if (pcurs >= CURSOR_FIRSTITEM) // drop item to allow us to pick up other items
+		DropItemBeforeTrig();
+	if (pcurs == CURSOR_REPAIR || pcurs == CURSOR_RECHARGE)
+		SetCursor_(CURSOR_HAND);
+}
 
 WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
@@ -412,26 +421,32 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		case GameActionType::TOGGLE_QUICK_SPELL_MENU:
 			lpMsg->message = DVL_WM_KEYDOWN;
 			lpMsg->wParam = 'S';
+			chrflag = false;
+			questlog = false;
+			invflag = false;
+			sbookflag = false;
 			StoreSpellCoords();
 			break;
 		case GameActionType::TOGGLE_CHARACTER_INFO:
-			questlog = false;
 			chrflag = !chrflag;
-			if (chrflag)
+			if (chrflag) {
+				questlog = false;
+				invflag = false;
+				spselflag = false;
 				FocusOnCharInfo();
-			else
-				FocusOnInventory();
+			}
 			break;
 		case GameActionType::TOGGLE_INVENTORY:
-			if (pcurs >= CURSOR_FIRSTITEM && invflag)
-				// Drop item so that it does not get destroyed.
-				DropItemBeforeTrig();
-			sbookflag = false;
 			invflag = !invflag;
-			if (invflag)
+			if (invflag) {
+				chrflag = false;
+				questlog = false;
+				sbookflag = false;
+				spselflag = false;
 				FocusOnInventory();
-			else
-				FocusOnCharInfo();
+			} else {
+				BlurInventory();
+			}
 			break;
 		case GameActionType::SEND_KEY:
 			lpMsg->message = action.send_key.up ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;

@@ -127,16 +127,6 @@ void Interact()
 	}
 }
 
-// hide the cursor when we start walking via keyboard/controller
-void HideCursor()
-{
-	if (pcurs >= CURSOR_FIRSTITEM) // drop item to allow us to pick up other items
-		DropItemBeforeTrig();
-	if (pcurs == CURSOR_REPAIR || pcurs == CURSOR_RECHARGE)
-		SetCursor_(CURSOR_HAND);
-	sgbControllerActive = true;
-}
-
 void AttrIncBtnSnap(int key)
 {
 	if (invflag || spselflag || !chrflag)
@@ -357,9 +347,6 @@ void HotSpellMove(int key)
 	int x = 0;
 	int y = 0;
 
-	if (!sgbControllerActive)
-		HideCursor();
-
 	DWORD ticks = GetTickCount();
 	if (ticks - invmove < 100) {
 		return;
@@ -427,7 +414,8 @@ void HotSpellMove(int key)
 void WalkInDir(MoveDirection dir)
 {
 	if (dir.x == MoveDirectionX::NONE && dir.y == MoveDirectionY::NONE) {
-		plr[myplr].walkpath[0] = WALK_NONE;
+		if (sgbControllerActive)
+			plr[myplr].walkpath[0] = WALK_NONE;
 		return;
 	}
 
@@ -437,7 +425,6 @@ void WalkInDir(MoveDirection dir)
 
 	ClrPlrPath(myplr);                   // clear nodes
 	plr[myplr].destAction = ACTION_NONE; // stop attacking, etc.
-	HideCursor();
 	static const _walk_path kMoveToWalkDir[3][3] = {
 		// NONE      UP      DOWN
 		{ WALK_NONE, WALK_N, WALK_S }, // NONE
@@ -476,22 +463,15 @@ void Movement()
 		return;
 
 	MoveDirection move_dir = GetMoveDirection();
+	if (move_dir.x != MoveDirectionX::NONE || move_dir.y != MoveDirectionY::NONE) {
+		sgbControllerActive = true;
+	}
 	if (InControlledMenu()) {
 		MenuMoveX(move_dir.x);
 		MenuMoveY(move_dir.y);
 		InvMove(move_dir);
 	} else {
 		WalkInDir(move_dir);
-	}
-
-	if (GetAsyncKeyState(DVL_MK_LBUTTON) & 0x8000) {
-		if (sgbControllerActive) { // show cursor first, before clicking
-			sgbControllerActive = false;
-		} else if (spselflag) {
-			SetSpell();
-		} else {
-			LeftMouseCmd(false);
-		}
 	}
 }
 
@@ -625,7 +605,6 @@ void PerformPrimaryAction()
 		return;
 	}
 
-	HideCursor();
 	if (pcursmonst == -1) {
 		CheckTownersNearby();
 	}
@@ -636,8 +615,6 @@ void PerformSecondaryAction()
 {
 	if (invflag)
 		return;
-
-	HideCursor();
 
 	CheckItemsNearby();
 
