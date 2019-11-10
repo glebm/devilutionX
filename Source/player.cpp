@@ -751,6 +751,8 @@ void NextPlrLevel(int pnum)
 
 	if (sgbControllerActive)
 		FocusOnCharInfo();
+
+	PlaySFX(IS_QUESTDN);
 }
 
 void AddPlrExperience(int pnum, int lvl, int exp)
