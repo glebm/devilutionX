@@ -15,6 +15,25 @@ BOOL gbNotInView; // valid - if x/y are in bounds
 const int RndInc = 1;
 const int RndMult = 0x015A4E35;
 
+void DrawSolidRectangle(int x0, int dx, int y0, int dy, int color)
+{
+	char *WorkingSurface = (char *)gpBuffer;
+	for (int x = x0; x < x0 + dx; x++) {
+		for (int y = y0; y < y0 + dy; y++) {
+			WorkingSurface[y * 768 + x] = color;
+		}
+	}
+}
+
+int CalculateTextWidth(const char *s)
+{
+	int l = 0;
+	while (*s) {
+		l += fontkern[fontframe[gbFontTransTbl[*s++]]] + 1;
+	}
+	return l;
+}
+
 void CelDraw(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth)
 {
 	CelBlitFrame(&gpBuffer[sx + BUFFER_WIDTH * sy], pCelBuff, nCel, nWidth);

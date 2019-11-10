@@ -12,6 +12,12 @@ extern int cel_transparency_active;
 extern int level_piece_id;
 extern void (*DrawPlrProc)(int, int, int, int, int, BYTE *, int, int, int, int);
 
+// QoL patch
+void HighlightItemsNameOnMap();
+
+// QoL patch
+void DrawMonsterHealthBar(int monsterID);
+
 void ClearCursor();
 void DrawMissile(int x, int y, int sx, int sy, BOOL pre);
 void DrawDeadPlayer(int x, int y, int sx, int sy);

@@ -1,5 +1,11 @@
 #include "diablo.h"
 
+#include <string>
+#include <vector>
+#include <map>
+
+#include <sstream>
+
 DEVILUTION_BEGIN_NAMESPACE
 
 int light_table_index;
@@ -63,6 +69,268 @@ void ClearCursor() // CODE_FIX: this was supposed to be in cursor.cpp
 {
 	sgdwCursWdt = 0;
 	sgdwCursWdtOld = 0;
+}
+
+void HighlightItemsNameOnMap()
+{
+	class itemLabel
+	{
+	public:
+		int itemID;
+		int row;
+		int col;
+		int x;
+		int y;
+		int width;
+		int height;
+		int magicLevel;
+		std::string text;
+		itemLabel(int x, int y, int width, int height, int row, int col, int itemID, int q2, std::string text):
+			itemID(itemID), row(row), col(col), x(x), y(y), width(width), height(height), magicLevel(q2), text(text) {}
+	};
+
+	static const int XOffset = 330;
+	char textOnGround[256];
+	std::vector<itemLabel> q;
+
+	for (int i = 0; i < numitems; i++) {
+		ItemStruct& item_local = item[itemactive[i]];
+		int row = item_local._ix - plr[myplr].WorldX;
+		int col = item_local._iy - plr[myplr].WorldY;
+		// items on ground name highlighting (Qndel)
+		if (item_local._itype == ITYPE_GOLD) {
+			sprintf(textOnGround, "%i gold", item_local._ivalue);
+		}
+		else {
+			sprintf(textOnGround, "%s", item_local._iIdentified ? item_local._iIName : item_local._iName);
+		}
+
+		int walkStandX = ScrollInfo._sxoff;// +plr[myplr]._pyoff;
+		int walkStandY = ScrollInfo._syoff;// +plr[myplr]._pxoff;
+		if (plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 4) {
+			walkStandX += 32;
+			walkStandY += 16;
+		} else if (plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 5) {
+			walkStandY +=32;
+		}
+
+		else if(plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 6) {
+			walkStandX += -32;
+			walkStandY += 16;
+		}
+
+		int x2 = 32 * (row - col) + (200 * (walkStandX) / 100 >> 1);
+		int y2 = 16 * (row + col) + (200 * (walkStandY) / 100 >> 1) - 16;
+																		 //// / (CanRun(myplr) ? 2 : 1);
+		int labelWidth = CalculateTextWidth(textOnGround);
+		int x = x2 - labelWidth/2; // attempt to center the label above the item
+		int y = y2;
+
+		// add to drawing queue
+		int mag = item_local._iMagical;
+		int ix = item_local._ix;
+		int iy = item_local._iy;
+		const std::string &text = std::string(textOnGround);
+		q.push_back(itemLabel(x, y, labelWidth, 13, ix, iy, itemactive[i], mag, text));
+	}
+
+	const int borderX = 5;
+	//bool highlightItem = false;
+	for (unsigned int item1 = 0; item1 < q.size(); ++item1) {
+		std::map<int, bool> backtrace;
+		bool canShow = false;
+		while (!canShow) {
+			canShow = true;
+			for (unsigned int item2 = 0; item2 < item1; ++item2) {
+				if (abs(q[item2].y - q[item1].y) >= q[item1].height + 2) {
+					continue;
+				}
+				if (q[item2].x >= q[item1].x && q[item2].x - q[item1].x < q[item1].width + borderX) {
+					canShow = false;
+					int newpos = q[item2].x - q[item1].width - borderX;
+					if (backtrace.find(newpos) == backtrace.end()) {
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					} else {
+						newpos = q[item2].x + q[item2].width + borderX;
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					}
+				} else if (q[item2].x < q[item1].x && q[item1].x - q[item2].x < q[item2].width + borderX) {
+					canShow = false;
+					int newpos = q[item2].x + q[item2].width + borderX;
+					if (backtrace.find(newpos) == backtrace.end()) {
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					} else {
+						newpos = q[item2].x - q[item1].width - borderX;
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					}
+				}
+			}
+		}
+	}
+
+	for (unsigned int i = 0; i < q.size(); ++i) {
+		itemLabel &t = q[i];
+		int bgcolor = 0;
+		// highlight label if item is under cursor:
+		if (pcursitem == t.itemID) {
+			bgcolor = 134;
+		}
+
+		int drawXOffset = -10;
+		if (invflag || sbookflag)
+			drawXOffset -= 160;
+		if (chrflag || questlog)
+			drawXOffset += 160;
+
+		char color = COL_WHITE;
+		if (t.magicLevel == ITEM_QUALITY_MAGIC) {
+			color = COL_BLUE;
+		} else if (t.magicLevel == ITEM_QUALITY_UNIQUE) {
+			color = COL_GOLD;
+		}
+		int sx = t.x + XOffset + drawXOffset;
+		int sy = t.y + 180;
+
+		int sx2 = t.x + XOffset + drawXOffset + 63;
+		int sy2 = t.y + 342;
+
+		if (sx < 0 || sx > 640 || sy < 0 || sy > 480) {
+			continue;
+		}
+
+		if (sx2 < 0 || sx2 > 640 || sy2 < 0 || sy2 > 480) {
+			continue;
+		}
+		DrawSolidRectangle(sx2, t.width + 1, sy2 - t.height, t.height, bgcolor);
+		PrintGameStr(sx, sy, &t.text[0u], color);
+	}
+}
+
+void DrawMonsterHealthBar(int monsterID)
+{
+	static const int yPos = 180;
+	static const int width = 250;
+	static const int ScreenWidth = 640;
+	static const int Screen_LeftBorder = 64;
+	static const int xPos = (ScreenWidth) / 2 - Screen_LeftBorder;
+	static const int height = 25;
+	static const int xOffset = 0;
+	static const int yOffset = 0; // was 1
+	static const int borderWidth = 2;
+	static const int borderColors[] = { 242 /*undead*/, 232 /*demon*/, 182 /*beast*/ };
+	static const int filledColor = 142; // optimum balance in bright red between dark and light
+	static const bool fillCorners = true;
+	static const int square = 10;
+	static const char *immuText = "IMMU: ";
+	static const char *resText = "RES: ";
+	static const char *vulnText = ":VULN";
+	static const int resSize = 3;
+	static const int resistColors[] = { 148, 140, 129 };
+	static const unsigned short immunes[] = { 0x8, 0x10, 0x20 };
+	static const unsigned short resists[] = { 0x1, 0x2, 0x4 };
+	static const bool cheat = false;
+
+	MonsterStruct *mon = &monster[monsterID];
+	BOOL specialMonster = !!mon->_uniqtype;
+	int currentLife = mon->_mhitpoints;
+	int maxLife = mon->_mmaxhp;
+	if (currentLife > maxLife) {
+		maxLife = currentLife;
+	}
+	int borderColor = borderColors[mon->MData->mMonstClass];
+	float FilledPercent = (float)currentLife / (float)maxLife;
+	unsigned short mres = mon->mMagicRes;
+	bool showHPNumbers = cheat || monstkills[mon->MType->mtype] >= 30;
+	bool showDamageModifiers = cheat || monstkills[mon->MType->mtype] >= 15;
+
+	if (showDamageModifiers) {
+		int resOffset = 0 + CalculateTextWidth(resText);
+		for (int k = 0; k < resSize; ++k) {
+			if (!(mres & resists[k])) {
+				continue;
+			}
+			DrawSolidRectangle(xPos + resOffset, square, yPos + height + yOffset + borderWidth + 2, square, resistColors[k]);
+			resOffset += 12;
+		}
+
+		int vulOffset = width - square - CalculateTextWidth(vulnText) - 4;
+		for (int k = 0; k < resSize; ++k) {
+			if (mres & resists[k] || mres & immunes[k]) {
+				continue;
+			}
+			DrawSolidRectangle(xPos + vulOffset, square, yPos + height + yOffset + borderWidth + 2, square, resistColors[k]);
+			vulOffset -= 12;
+		}
+	}
+
+	DrawSolidRectangle(xPos, (int)ceil(FilledPercent * width), yPos, height, filledColor);
+
+	static const int cornerMod = fillCorners ? borderWidth : 0;
+	static const int x0 = xPos - xOffset;
+	static const int dx = width + 2 * xOffset + cornerMod;
+	static const int y0 = yPos - yOffset;
+	static const int dy = height + 2 * yOffset + cornerMod;
+	DrawSolidRectangle(x0 - cornerMod, dx, yPos - yOffset - borderWidth, borderWidth, borderColor);
+	DrawSolidRectangle(x0, dx, yPos + yOffset + height, borderWidth, borderColor);
+	DrawSolidRectangle(xPos - xOffset - borderWidth, borderWidth, y0, dy, borderColor);
+	DrawSolidRectangle(xPos + xOffset + width, borderWidth, y0 - cornerMod, dy, borderColor);
+
+	bool drawImmu = false;
+	if (showDamageModifiers) {
+		int immuOffset = 0 + CalculateTextWidth(immuText) - 5;
+		for (int k = 0; k < resSize; ++k) {
+			if (!(mres & immunes[k])) {
+				continue;
+			}
+			drawImmu = true;
+			DrawSolidRectangle(xPos + immuOffset, square, yPos + height + yOffset + borderWidth + 2 - 15, square, resistColors[k]);
+			immuOffset += 12;
+		}
+	}
+
+	static const int newX = xPos + Screen_LeftBorder;
+	static const int newY = yPos + height - 3;
+	std::stringstream name;
+	name << mon->mName;
+	if (mon->leader > 0) {
+		name << " (minion)";
+	}
+	int namecolor = COL_WHITE;
+	if (specialMonster) { // || name.str() == "The Dark Lord"
+		namecolor = COL_GOLD;
+	}
+
+	if (!showHPNumbers) {
+		PrintGameStr(newX - CalculateTextWidth((char *)name.str().c_str()) / 2, 37, (char *)name.str().c_str(), namecolor);
+	} else {
+		static const int TWSlash = CalculateTextWidth("/");
+		PrintGameStr(newX - CalculateTextWidth((char *)name.str().c_str()) / 2, 30, (char *)name.str().c_str(), namecolor);
+		PrintGameStr(newX - TWSlash / 2, 43, "/", COL_WHITE);
+		std::stringstream current;
+		current << (currentLife >> 6);
+		std::stringstream max;
+		max << (maxLife >> 6);
+		PrintGameStr(newX + TWSlash, 43, (char *)max.str().c_str(), COL_WHITE);
+		PrintGameStr(newX - CalculateTextWidth((char *)current.str().c_str()) - TWSlash, 43, (char *)current.str().c_str(), COL_WHITE);
+	}
+	if (showDamageModifiers) {
+		PrintGameStr(newX - width / 2, 59, resText, COL_GOLD);
+	}
+
+	std::stringstream kills;
+	kills << "Kills: " << monstkills[mon->MType->mtype];
+	PrintGameStr(newX - CalculateTextWidth("kills") / 2 - 30, 59, (char *)(kills.str().c_str()), COL_WHITE);
+
+	if (drawImmu) {
+		PrintGameStr(newX - width / 2, 46 - 2, immuText, COL_GOLD);
+	}
+	if (showDamageModifiers) {
+		PrintGameStr(newX + width / 2 - CalculateTextWidth(vulnText), 59, vulnText, COL_RED);
+	}
 }
 
 /**
@@ -888,6 +1156,10 @@ void DrawView(int StartX, int StartY)
 
 	DrawDurIcon();
 
+	if (drawitems) {
+		HighlightItemsNameOnMap();
+	}
+
 	if (chrflag) {
 		DrawChr();
 	} else if (questlog) {
@@ -919,6 +1191,9 @@ void DrawView(int StartX, int StartY)
 	} else if (PauseMode != 0) {
 		gmenu_draw_pause();
 	}
+
+	if (pcursmonst != -1) // QoL patch
+		DrawMonsterHealthBar(pcursmonst);
 
 	DrawPlrMsg();
 	gmenu_draw();

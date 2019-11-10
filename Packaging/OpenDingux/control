@@ -1,9 +1,9 @@
-Package: devilutionx
+Package: devilutionx-qol
 Version: 0.0.1
 Architecture: mipsel
 Section: games
 Maintainer: glex.spb@gmail.com
-Description: A port of DevilutionX for RetroFW.
+Description: A port of DevilutionX for RetroFW with QoL patches.
 Priority: optional
 Homepage: https://github.com/diasurgical/devilutionX
 Depends:

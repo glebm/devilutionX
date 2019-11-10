@@ -14,8 +14,8 @@ rm -rf "${TMP}"
 mkdir -p "${TMP}"
 cat > "${TMP}/default.gcw0.desktop" <<EOF
 [Desktop Entry]
-Name=DevilutionX
-Comment=A port of DevilutionX for RetroFW.
+Name=DevilutionX QoL
+Comment=A port of DevilutionX for RetroFW with QoL patches.
 Exec=devilutionx.dge
 Terminal=false
 Type=Application
