@@ -288,6 +288,24 @@ void CelDecDatLightTrans(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nW
 	}
 }
 
+void DrawSolidRectangle(int x0, int dx, int y0, int dy, int color) {
+	char* WorkingSurface = (char*)gpBuffer;
+	for (int x = x0; x < x0 + dx; x++) {
+		for (int y = y0; y < y0 + dy; y++) {
+			WorkingSurface[y*768+x] = color;
+		}
+	}
+}
+
+int CalculateTextWidth(char* s)
+{
+	int l = 0;
+	while (*s) {
+		l += fontkern[fontframe[gbFontTransTbl[*s++]]] + 1;
+	}
+	return l;
+}
+
 void CelDecodeLightOnly(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth)
 {
 	int nDataSize;
