@@ -16,6 +16,7 @@ BOOL gbRunGame;
 int glMid3Seed[NUMLEVELS];
 BOOL gbRunGameResult;
 BOOL zoomflag;
+bool drawitems;
 BOOL gbProcessPlayers;
 int glEndSeed[NUMLEVELS];
 BOOL gbLoadGame;
@@ -855,6 +856,9 @@ void ReleaseKey(int vkey)
 {
 	if (vkey == VK_SNAPSHOT)
 		CaptureScreen();
+
+	if (vkey == VK_MENU || vkey == VK_LMENU || vkey == VK_RMENU)
+		drawitems = false;
 }
 
 void PressKey(int vkey)
@@ -1022,6 +1026,8 @@ void PressKey(int vkey)
 		if (stextflag) {
 			STextNext();
 		}
+	} else if(vkey == VK_MENU || vkey == VK_LMENU || vkey == VK_RMENU) {
+		drawitems = true;
 	} else if (vkey == VK_LEFT) {
 		if (automapflag && !talkflag) {
 			AutomapLeft();
