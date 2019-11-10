@@ -43,6 +43,10 @@ inline BYTE *CelGetFrameClipped(BYTE *pCelBuff, int nCel, int *nDataSize)
 	return pRLEBytes + nDataStart;
 }
 
+// infernity-common QoL patch:
+void DrawSolidRectangle(int x0, int dx, int y0, int dy, int color);
+int CalculateTextWidth(const char *s);
+
 void CelDraw(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
 void CelBlitFrame(BYTE *pBuff, BYTE *pCelBuff, int nCel, int nWidth);
 void CelClippedDraw(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
