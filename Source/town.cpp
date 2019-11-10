@@ -985,6 +985,9 @@ void T_DrawView(int StartX, int StartY)
 		gmenu_draw_pause();
 	}
 
+	if(drawitems) {
+		HighlightItemsNameOnMap();
+	}
 	DrawPlrMsg();
 	gmenu_draw();
 	doom_draw();

@@ -1,5 +1,9 @@
 #include "diablo.h"
 
+#include <string>
+#include <vector>
+#include <map>
+
 DEVILUTION_BEGIN_NAMESPACE
 
 int light_table_index;
@@ -382,6 +386,10 @@ void DrawView(int StartX, int StartY)
 	}
 
 	DrawDurIcon();
+
+	if (drawitems) {
+		HighlightItemsNameOnMap();
+	}
 
 	if (chrflag) {
 		DrawChr();
@@ -1344,6 +1352,145 @@ void scrollrt_draw_clipped_dungeon_2(BYTE *pBuff, int sx, int sy, int skipChunks
 	if (bArch != 0) {
 		cel_transparency_active = TransList[bMap];
 		Cel2DecodeLightTrans(pBuff, pSpecialCels, bArch, 64, CelSkip, 8);
+	}
+}
+
+void HighlightItemsNameOnMap()
+{
+	class itemLabel
+	{
+	public:
+		int itemID;
+		int row;
+		int col;
+		int x;
+		int y;
+		int width;
+		int height;
+		int magicLevel;
+		std::string text;
+		itemLabel(int x, int y, int width, int height, int row, int col, int itemID, int q2, std::string text):
+			itemID(itemID), row(row), col(col), x(x), y(y), width(width), height(height), magicLevel(q2), text(text) {}
+	};
+
+	static const int XOffset = 330;
+	char textOnGround[256];
+	std::vector<itemLabel> q;
+
+	for (int i = 0; i < numitems; i++) {
+		ItemStruct& item_local = item[itemactive[i]];
+		int row = item_local._ix - plr[myplr].WorldX;
+		int col = item_local._iy - plr[myplr].WorldY;
+		// items on ground name highlighting (Qndel)
+		if (item_local._itype == ITYPE_GOLD) {
+			sprintf(textOnGround, "%i gold", item_local._ivalue);
+		}
+		else {
+			sprintf(textOnGround, "%s", item_local._iIdentified ? item_local._iIName : item_local._iName);
+		}
+
+		int walkStandX = ScrollInfo._sxoff;// +plr[myplr]._pyoff;
+		int walkStandY = ScrollInfo._syoff;// +plr[myplr]._pxoff;
+		if (plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 4) {
+			walkStandX += 32;
+			walkStandY += 16;
+		} else if (plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 5) {
+			walkStandY +=32;
+		}
+
+		else if(plr[myplr]._pmode == PM_WALK2 && ScrollInfo._sdir == 6) {
+			walkStandX += -32;
+			walkStandY += 16;
+		}
+
+		int x2 = 32 * (row - col) + (200 * (walkStandX) / 100 >> 1);
+		int y2 = 16 * (row + col) + (200 * (walkStandY) / 100 >> 1) - 16;
+																		 //// / (CanRun(myplr) ? 2 : 1);
+		int labelWidth = CalculateTextWidth(textOnGround);
+		int x = x2 - labelWidth/2; // attempt to center the label above the item
+		int y = y2;
+
+		// add to drawing queue
+		int mag = item_local._iMagical;
+		int ix = item_local._ix;
+		int iy = item_local._iy;
+		const std::string &text = std::string(textOnGround);
+		q.push_back(itemLabel(x, y, labelWidth, 13, ix, iy, itemactive[i], mag, text));
+	}
+
+	const int borderX = 5;
+	//bool highlightItem = false;
+	for (unsigned int item1 = 0; item1 < q.size(); ++item1) {
+		std::map<int, bool> backtrace;
+		bool canShow = false;
+		while (!canShow) {
+			canShow = true;
+			for (unsigned int item2 = 0; item2 < item1; ++item2) {
+				if (abs(q[item2].y - q[item1].y) >= q[item1].height + 2) {
+					continue;
+				}
+				if (q[item2].x >= q[item1].x && q[item2].x - q[item1].x < q[item1].width + borderX) {
+					canShow = false;
+					int newpos = q[item2].x - q[item1].width - borderX;
+					if (backtrace.find(newpos) == backtrace.end()) {
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					} else {
+						newpos = q[item2].x + q[item2].width + borderX;
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					}
+				} else if (q[item2].x < q[item1].x && q[item1].x - q[item2].x < q[item2].width + borderX) {
+					canShow = false;
+					int newpos = q[item2].x + q[item2].width + borderX;
+					if (backtrace.find(newpos) == backtrace.end()) {
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					} else {
+						newpos = q[item2].x - q[item1].width - borderX;
+						q[item1].x = newpos;
+						backtrace[newpos] = true;
+					}
+				}
+			}
+		}
+	}
+
+	for (unsigned int i = 0; i < q.size(); ++i) {
+		itemLabel &t = q[i];
+		int bgcolor = 0;
+		// highlight label if item is under cursor:
+		if (pcursitem == t.itemID) {
+			bgcolor = 134;
+		}
+
+		int drawXOffset = -10;
+		if (invflag || sbookflag)
+			drawXOffset -= 160;
+		if (chrflag || questlog)
+			drawXOffset += 160;
+
+		char color = COL_WHITE;
+		if (t.magicLevel == ITEM_QUALITY_MAGIC) {
+			color = COL_BLUE;
+		} else if (t.magicLevel == ITEM_QUALITY_UNIQUE) {
+			color = COL_GOLD;
+		}
+		int sx = t.x + XOffset + drawXOffset;
+		int sy = t.y + 180;
+
+		int sx2 = t.x + XOffset + drawXOffset + 63;
+		int sy2 = t.y + 342;
+
+		if (sx < 0 || sx > 640 || sy < 0 || sy > 480) {
+			continue;
+		}
+
+		if (sx2 < 0 || sx2 > 640 || sy2 < 0 || sy2 > 480) {
+			continue;
+		}
+		DrawSolidRectangle(sx2, t.width + 1, sy2 - t.height, t.height, bgcolor);
+		PrintGameStr(sx, sy, &t.text[0u], color);
 	}
 }
 
