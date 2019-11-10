@@ -7,7 +7,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 readonly OUT="${1:-../../build/devilutionx.ipk}"
 readonly IN="${2:-../../build/devilutionx.dge}"
 
-readonly PKG_TARGET=devilutionx
+readonly PKG_TARGET=devilutionx-qol
 readonly TMP="tmp/${PKG_TARGET}"
 
 pkg_control_get() {
@@ -28,13 +28,13 @@ mkdir -p "${TMP}"
 # data.tar.gz
 mkdir -p "${TMP}/root/${PKG_INSTALL_DIR}" "${TMP}/root/${PKG_LOCAL_DIR}"
 cp "$IN" "${TMP}/root/${PKG_INSTALL_DIR}/${PKG_TARGET}.dge"
-cp ../resources/Diablo_32.png "${TMP}/root/${PKG_INSTALL_DIR}/devilutionx.png"
+cp ../resources/Diablo_32.png "${TMP}/root/${PKG_INSTALL_DIR}/${PKG_TARGET}.png"
 cp ../resources/CharisSILB.ttf ../resources/LICENSE.CharisSILB.txt "${TMP}/root/${PKG_INSTALL_DIR}"
-cp devilutionx-retrofw.man.txt "${TMP}/root/${PKG_INSTALL_DIR}/devilutionx.man.txt"
+cp devilutionx-retrofw.man.txt "${TMP}/root/${PKG_INSTALL_DIR}/${PKG_TARGET}.man.txt"
 cp diablo.ini "${TMP}/root/${PKG_LOCAL_DIR}/diablo.ini"
 mkdir -p "${TMP}/root/$(dirname "$PKG_MENU_LNK_OUT")"
 printf "%s\n" \
-  "title=DevilutionX" \
+  "title=DevilutionX QoL" \
   "description=$(pkg_control_get Description)" \
   "exec=/${PKG_INSTALL_DIR}/${PKG_TARGET}.dge" \
   > "${TMP}/root/${PKG_MENU_LNK_OUT}"
