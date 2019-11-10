@@ -20,7 +20,7 @@ HANDLE patch_rt_mpq;
 /* data */
 
 char gszVersionNumber[MAX_PATH] = "internal version unknown";
-char gszProductName[MAX_PATH] = "Diablo v1.09";
+char gszProductName[MAX_PATH] = "Diablo v1.09 with QOL changes";
 
 void init_cleanup()
 {
