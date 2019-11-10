@@ -1207,11 +1207,24 @@ void PM_ChangeOffset(int pnum)
 	}
 
 	plr[pnum]._pVar8++;
+	if (currlevel == 0) {
+		plr[pnum]._pVar8++;
+	}
 	px = plr[pnum]._pVar6 >> 8;
 	py = plr[pnum]._pVar7 >> 8;
 
-	plr[pnum]._pVar6 += plr[pnum]._pxvel;
-	plr[pnum]._pVar7 += plr[pnum]._pyvel;
+	// speedup run animation: //TODO bad place
+	if (currlevel == 0) {
+		if (plr[pnum]._pAnimFrame % 2 == 1) {
+			plr[pnum]._pAnimFrame++;
+		}
+		if (plr[pnum]._pAnimFrame >= plr[pnum]._pWFrames) {
+			plr[pnum]._pAnimFrame = 0;
+		}
+	}
+
+	plr[pnum]._pVar6 += (currlevel == 0 ? 2 : 1) * plr[pnum]._pxvel;
+	plr[pnum]._pVar7 += (currlevel == 0 ? 2 : 1) * plr[pnum]._pyvel;
 	plr[pnum]._pxoff = plr[pnum]._pVar6 >> 8;
 	plr[pnum]._pyoff = plr[pnum]._pVar7 >> 8;
 
