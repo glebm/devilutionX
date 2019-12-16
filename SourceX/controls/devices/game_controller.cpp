@@ -11,6 +11,22 @@ static SDL_GameController *current_game_controller = nullptr;
 static bool sgbTriggerLeftDown = false;
 static bool sgbTriggerRightDown = false;
 
+namespace {
+
+bool IsModifierKey()
+{
+#ifdef GAME_CONTROLLER_MODIFIER_KEY
+	if (current_game_controller == nullptr)
+		return false;
+	return SDL_GameControllerGetButton(current_game_controller, SDL_CONTROLLER_BUTTON_BACK) != 0;
+#else
+	return false;
+#endif
+}
+
+} // namespace
+
+
 ControllerButton GameControllerToControllerButton(const SDL_Event &event)
 {
 	switch (event.type) {
@@ -39,11 +55,19 @@ ControllerButton GameControllerToControllerButton(const SDL_Event &event)
 	case SDL_CONTROLLERBUTTONDOWN:
 	case SDL_CONTROLLERBUTTONUP:
 		switch (event.cbutton.button) {
+#ifdef GAME_CONTROLLER_MODIFIER_KEY
+		case GAME_CONTROLLER_MODIFIER_KEY:
+			return ControllerButton::IGNORE;
+#endif
 		case SDL_CONTROLLER_BUTTON_A:
 			return ControllerButton::BUTTON_A;
 		case SDL_CONTROLLER_BUTTON_B:
+			if (IsModifierKey())
+				return ControllerButton::BUTTON_RIGHTSTICK;
 			return ControllerButton::BUTTON_B;
 		case SDL_CONTROLLER_BUTTON_X:
+			if (IsModifierKey())
+				return ControllerButton::BUTTON_BACK;
 			return ControllerButton::BUTTON_X;
 		case SDL_CONTROLLER_BUTTON_Y:
 			return ControllerButton::BUTTON_Y;
@@ -52,10 +76,16 @@ ControllerButton GameControllerToControllerButton(const SDL_Event &event)
 		case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
 			return ControllerButton::BUTTON_RIGHTSTICK;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+			if (IsModifierKey())
+				return ControllerButton::AXIS_TRIGGERLEFT;
 			return ControllerButton::BUTTON_LEFTSHOULDER;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+			if (IsModifierKey())
+				return ControllerButton::AXIS_TRIGGERRIGHT;
 			return ControllerButton::BUTTON_RIGHTSHOULDER;
 		case SDL_CONTROLLER_BUTTON_START:
+			if (IsModifierKey())
+				return ControllerButton::BUTTON_LEFTSTICK;
 			return ControllerButton::BUTTON_START;
 		case SDL_CONTROLLER_BUTTON_BACK:
 			return ControllerButton::BUTTON_BACK;
@@ -122,35 +152,54 @@ bool IsGameControllerButtonPressed(ControllerButton button)
 {
 	if (current_game_controller == nullptr)
 		return false;
+	if (IsModifierKey() && (button == ControllerButton::BUTTON_DPAD_UP || button == ControllerButton::BUTTON_DPAD_DOWN || button == ControllerButton::BUTTON_DPAD_LEFT || button == ControllerButton::BUTTON_DPAD_RIGHT))
+		return false;
 	const SDL_GameControllerButton gc_button = ControllerButtonToGameControllerButton(button);
 	return gc_button != SDL_CONTROLLER_BUTTON_INVALID && SDL_GameControllerGetButton(current_game_controller, gc_button);
 }
 
 bool ProcessGameControllerAxisMotion(const SDL_Event &event)
 {
-	if (event.type != SDL_CONTROLLERAXISMOTION)
-		return false;
-	switch (event.caxis.axis) {
-	case SDL_CONTROLLER_AXIS_LEFTX:
-		leftStickXUnscaled = event.caxis.value;
-		leftStickNeedsScaling = true;
-		break;
-	case SDL_CONTROLLER_AXIS_LEFTY:
-		leftStickYUnscaled = -event.caxis.value;
-		leftStickNeedsScaling = true;
-		break;
-	case SDL_CONTROLLER_AXIS_RIGHTX:
-		rightStickXUnscaled = event.caxis.value;
-		rightStickNeedsScaling = true;
-		break;
-	case SDL_CONTROLLER_AXIS_RIGHTY:
-		rightStickYUnscaled = -event.caxis.value;
-		rightStickNeedsScaling = true;
-		break;
-	default:
-		return false;
+	if (event.type == SDL_CONTROLLERAXISMOTION) {
+		switch (event.caxis.axis) {
+		case SDL_CONTROLLER_AXIS_LEFTX:
+			leftStickXUnscaled = event.caxis.value;
+			leftStickNeedsScaling = true;
+			break;
+		case SDL_CONTROLLER_AXIS_LEFTY:
+			leftStickYUnscaled = -event.caxis.value;
+			leftStickNeedsScaling = true;
+			break;
+		case SDL_CONTROLLER_AXIS_RIGHTX:
+			rightStickXUnscaled = event.caxis.value;
+			rightStickNeedsScaling = true;
+			break;
+		case SDL_CONTROLLER_AXIS_RIGHTY:
+			rightStickYUnscaled = -event.caxis.value;
+			rightStickNeedsScaling = true;
+			break;
+		default:
+			return false;
+		}
 	}
-	return true;
+	if (event.type == SDL_CONTROLLERBUTTONUP || event.type == SDL_CONTROLLERBUTTONDOWN) {
+		if (SDL_GameControllerGetButton(current_game_controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT) != 0) {
+			rightStickX = -1;
+		} else if (SDL_GameControllerGetButton(current_game_controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) != 0) {
+			rightStickX = 1;
+		} else {
+			rightStickX = 0;
+		}
+		if (SDL_GameControllerGetButton(current_game_controller, SDL_CONTROLLER_BUTTON_DPAD_UP) != 0) {
+			rightStickY = 1;
+		} else if (SDL_GameControllerGetButton(current_game_controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN) != 0) {
+			rightStickY = -1;
+		} else {
+			rightStickY = 0;
+		}
+		return true;
+	}
+	return false;
 }
 
 SDL_GameController *CurrentGameController()

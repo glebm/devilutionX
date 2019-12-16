@@ -78,6 +78,8 @@ ControllerButton KbCtrlToControllerButton(const SDL_Event &event)
 #endif
 #ifdef KBCTRL_BUTTON_START
 		case KBCTRL_BUTTON_START:
+			if (IsModifierKey())
+				return ControllerButton::BUTTON_LEFTSTICK;
 			return ControllerButton::BUTTON_START;
 #endif
 #ifdef KBCTRL_BUTTON_BACK
