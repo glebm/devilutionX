@@ -630,6 +630,13 @@ void SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 		ErrSdl();
 	}
 
+	auto *output_surface = GetOutputSurface();
+	if (output_surface->format->BitsPerPixel == 8) {
+		if (SDLC_SetSurfaceColors(output_surface, SVidPalette) <= -1) {
+			ErrSdl();
+		}
+	}
+
 	SVidFrameEnd = SDL_GetTicks() * 1000 + SVidFrameLength;
 	SDL_FillRect(GetOutputSurface(), NULL, 0x000000);
 }
@@ -651,6 +658,7 @@ BOOL SVidLoadNextFrame()
 
 BOOL SVidPlayContinue(void)
 {
+	auto *output_surface = GetOutputSurface();
 	if (smk_palette_updated(SVidSMK)) {
 		SDL_Color colors[256];
 		const unsigned char *palette_data = smk_get_palette(SVidSMK);
@@ -672,6 +680,12 @@ BOOL SVidPlayContinue(void)
 		if (SDLC_SetSurfaceAndPaletteColors(SVidSurface, SVidPalette, colors, 0, 256) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;
+		}
+		if (output_surface->format->BitsPerPixel == 8) {
+			if (SDLC_SetSurfaceAndPaletteColors(output_surface, SVidPalette, colors, 0, 256) <= -1) {
+				SDL_Log(SDL_GetError());
+				return false;
+			}
 		}
 	}
 
@@ -703,7 +717,6 @@ BOOL SVidPlayContinue(void)
 	} else
 #endif
 	{
-		auto *output_surface = GetOutputSurface();
 		int factor;
 		int wFactor = output_surface->w / SVidWidth;
 		int hFactor = output_surface->h / SVidHeight;
