@@ -40,14 +40,16 @@ if(NIGHTLY_BUILD)
   set(FASTER OFF)
 endif()
 
-include(CMake/git.cmake)
-get_git_tag(GIT_TAG)
-if(NOT CMAKE_BUILD_TYPE MATCHES "Release")
-  get_git_commit_hash(GIT_COMMIT_HASH)
+if(NOT PROJECT_VERSION)
+  include(CMake/git.cmake)
+    get_git_tag(PROJECT_VERSION)
+  if(NOT CMAKE_BUILD_TYPE MATCHES "Release")
+    get_git_commit_hash(PROJECT_VERSION_SUFFIX)
+  endif()
 endif()
 
 project(DevilutionX
-  VERSION ${GIT_TAG}
+  VERSION ${PROJECT_VERSION}
   LANGUAGES C CXX)
 
 if(LTO)
