@@ -10,9 +10,9 @@ namespace dvl {
 
 namespace {
 
-std::string *basePath = NULL;
-std::string *prefPath = NULL;
-std::string *configPath = NULL;
+std::string *base_path = nullptr;
+std::string *pref_path = nullptr;
+std::string *config_path = nullptr;
 
 void AddTrailingSlash(std::string *path) {
 #ifdef _WIN32
@@ -25,8 +25,8 @@ void AddTrailingSlash(std::string *path) {
 }
 
 std::string *FromSDL(char *s) {
-	std::string *result = new std::string(s != NULL ? s : "");
-	if (s != NULL) {
+	auto *result = new std::string(s != nullptr ? s : "");
+	if (s != nullptr) {
 		SDL_free(s);
 	} else {
 		SDL_Log("%s", SDL_GetError());
@@ -42,44 +42,44 @@ const std::string &GetBasePath()
 #ifdef __vita__
 	if (basePath == NULL) basePath = new std::string(GetPrefPath());
 #else
-	if (basePath == NULL) basePath = FromSDL(SDL_GetBasePath());
+	if (base_path == nullptr) base_path = FromSDL(SDL_GetBasePath());
 #endif
-	return *basePath;
+	return *base_path;
 }
 
 const std::string &GetPrefPath()
 {
-	if (prefPath == NULL) prefPath = FromSDL(SDL_GetPrefPath("diasurgical", "devilution"));
-	return *prefPath;
+	if (pref_path == nullptr) pref_path = FromSDL(SDL_GetPrefPath("diasurgical", "devilution"));
+	return *pref_path;
 }
 
 const std::string &GetConfigPath()
 {
-	if (configPath == NULL)
-		configPath = FromSDL(SDL_GetPrefPath("diasurgical", "devilution"));
-	return *configPath;
+	if (config_path == nullptr)
+		config_path = FromSDL(SDL_GetPrefPath("diasurgical", "devilution"));
+	return *config_path;
 }
 
 void SetBasePath(const char *path)
 {
-	if (basePath == NULL) basePath = new std::string;
-	*basePath = path;
-	AddTrailingSlash(basePath);
+	if (base_path == nullptr) base_path = new std::string;
+	*base_path = path;
+	AddTrailingSlash(base_path);
 }
 
 void SetPrefPath(const char *path)
 {
-	if (prefPath == NULL) prefPath = new std::string;
-	*prefPath = path;
-	AddTrailingSlash(prefPath);
+	if (pref_path == nullptr) pref_path = new std::string;
+	*pref_path = path;
+	AddTrailingSlash(pref_path);
 }
 
 void SetConfigPath(const char *path)
 {
-	if (configPath == NULL)
-		configPath = new std::string;
-	*configPath = path;
-	AddTrailingSlash(configPath);
+	if (config_path == nullptr)
+		config_path = new std::string;
+	*config_path = path;
+	AddTrailingSlash(config_path);
 }
 
 } // namespace dvl
