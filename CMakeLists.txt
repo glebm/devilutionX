@@ -902,3 +902,21 @@ if(NOT NONET)
   add_subdirectory(3rdParty/libzt)
   target_link_libraries(${BIN_TARGET} PRIVATE zt-static)
 endif()
+
+# Copy the SDL2 DLL next to the place where all executables are stored to
+# help people running the apps
+if(CMAKE_RUNTIME_OUTPUT_DIRECTORY AND MSVC AND (SDL2_DLL_DEBUG OR SDL2_DLL_RELEASE))
+  if(SDL2_DLL_DEBUG AND SDL2_DLL_RELEASE)
+      set(sdl2_dll_input $<$<CONFIG:Debug>:${SDL2_DLL_DEBUG}>$<$<NOT:$<CONFIG:Debug>>:${SDL2_DLL_RELEASE}>)
+  elseif(SDL2_DLL_DEBUG)
+      set(sdl2_dll_input ${SDL2_DLL_DEBUG})
+  else()
+      set(sdl2_dll_input ${SDL2_DLL_RELEASE})
+  endif()
+  add_custom_command(TARGET ${BIN_TARGET} POST_BUILD
+      # The directory might not always exist before (e.g. if creating a
+      # static build) and copy_if_different would just name the file
+      # `bin` instead of creating such directory
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${sdl2_dll_input} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+endif()

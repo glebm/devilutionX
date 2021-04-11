@@ -185,17 +185,26 @@ endif()
 
 # SDL-2.0 is the name used by FreeBSD ports...
 # don't confuse it for the version number.
-find_library(SDL2_LIBRARY
+find_library(SDL2_LIBRARY_RELEASE
   NAMES SDL2 SDL-2.0
   HINTS
     ENV SDL2DIR
     ${SDL2_NO_DEFAULT_PATH_CMD}
   PATH_SUFFIXES lib ${VC_LIB_PATH_SUFFIX}
   PATHS ${SDL2_PATH}
-  DOC "Where the SDL2 Library can be found"
+  DOC "Where the SDL2 Release Library can be found"
 )
+find_library(SDL2_LIBRARY_DEBUG
+  NAMES SDL2d
+  HINTS
+    ENV SDL2DIR
+    ${SDL2_NO_DEFAULT_PATH_CMD}
+  PATH_SUFFIXES lib ${VC_LIB_PATH_SUFFIX}
+  PATHS ${SDL2_PATH}
+  DOC "Where the SDL2 Debug Library can be found")
 
-set(SDL2_LIBRARIES "${SDL2_LIBRARY}")
+include(SelectLibraryConfigurations)
+select_library_configurations(SDL2)
 
 if(NOT SDL2_BUILDING_LIBRARY)
   if(NOT SDL2_INCLUDE_DIR MATCHES ".framework")
@@ -343,8 +352,17 @@ if(SDL2_FOUND)
   if(SDL2_LIBRARY AND NOT TARGET SDL2::Core)
     add_library(SDL2::Core UNKNOWN IMPORTED)
     set_target_properties(SDL2::Core PROPERTIES
-                          IMPORTED_LOCATION "${SDL2_LIBRARY}"
                           INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}")
+
+    if(SDL2_LIBRARY_RELEASE)
+        set_property(TARGET SDL2::Core APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
+        set_property(TARGET SDL2::Core PROPERTY IMPORTED_LOCATION_RELEASE ${SDL2_LIBRARY_RELEASE})
+    endif()
+
+    if(SDL2_LIBRARY_DEBUG)
+        set_property(TARGET SDL2::Core APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+        set_property(TARGET SDL2::Core PROPERTY IMPORTED_LOCATION_DEBUG ${SDL2_LIBRARY_DEBUG})
+    endif()
 
     if(APPLE)
       # For OS X, SDL2 uses Cocoa as a backend so it must link to Cocoa.
