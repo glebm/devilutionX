@@ -1054,14 +1054,10 @@ void TilesInView(int *rcolumns, int *rrows)
 
 	if (!zoomflag) {
 		// Half the number of tiles, rounded up
-		if (columns & 1) {
-			columns++;
-		}
-		columns /= 2;
-		if (rows & 1) {
-			rows++;
-		}
-		rows /= 2;
+		columns = (columns + 1) / 2;
+
+		// One extra row, not sure why but fixes https://github.com/diasurgical/devilutionX/issues/1498.
+		rows = (rows + 1) / 2 + 1;
 	}
 
 	*rcolumns = columns;
