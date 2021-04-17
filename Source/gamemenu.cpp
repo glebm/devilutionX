@@ -5,6 +5,8 @@
  */
 #include "gamemenu.h"
 
+#include <cstddef>
+
 #include "cursor.h"
 #include "error.h"
 #include "gmenu.h"
@@ -16,6 +18,7 @@
 
 namespace devilution {
 
+namespace {
 /** Contains the game menu items of the single player menu. */
 TMenuItem sgSingleMenu[] = {
 	// clang-format off
@@ -39,6 +42,7 @@ TMenuItem sgMultiMenu[] = {
 	{ GMENU_ENABLED, NULL,              NULL                   },
 	// clang-format on
 };
+
 TMenuItem sgOptionsMenu[] = {
 	// clang-format off
 //	  dwFlags,                      pszStr,          fnMenu
@@ -47,11 +51,13 @@ TMenuItem sgOptionsMenu[] = {
 	{ GMENU_ENABLED | GMENU_SLIDER, "Gamma",         &gamemenu_gamma         },
 //	{ GMENU_ENABLED               , NULL,            &gamemenu_color_cycling },
 	{ GMENU_ENABLED | GMENU_SLIDER, "Speed",         &gamemenu_speed         },
-//	{ GMENU_ENABLED | GMENU_SLIDER, NULL,            &gamemenu_loadjog       },
+	{ GMENU_ENABLED               , "Run in Town",   &gamemenu_run_in_town   },
 	{ GMENU_ENABLED               , "Previous Menu", &gamemenu_previous      },
 	{ GMENU_ENABLED               , NULL,            NULL                    },
 	// clang-format on
 };
+constexpr std::size_t kRunInTownOptionIndex = 4;
+
 /** Specifies the menu names for music enabled and disabled. */
 const char *const music_toggle_names[] = {
 	"Music",
@@ -62,12 +68,14 @@ const char *const sound_toggle_names[] = {
 	"Sound",
 	"Sound Disabled",
 };
-const char *jogging_toggle_names[] = {
-	"Jog",
-	"Walk",
+const char *kRunInTownToggleNames[] = {
+	"Run in Town: ON",
+	"Run in Town: OFF",
 };
 /** Specifies the menu names for color cycling disabled and enabled. */
 const char *const color_cycling_toggle_names[] = { "Color Cycling Off", "Color Cycling On" };
+
+} // namespace
 
 static void gamemenu_update_single(TMenuItem *pMenuItems)
 {
@@ -222,11 +230,11 @@ static void gamemenu_get_sound()
 	gamemenu_sound_music_toggle(sound_toggle_names, &sgOptionsMenu[1], sound_get_or_set_sound_volume(1));
 }
 
-static void gamemenu_jogging()
+static void gamemenu_update_run_in_town()
 {
-	gmenu_slider_steps(&sgOptionsMenu[3], 2);
-	gmenu_slider_set(&sgOptionsMenu[3], 0, 1, sgOptions.Gameplay.bRunInTown);
-	sgOptionsMenu[3].pszStr = jogging_toggle_names[!sgOptions.Gameplay.bRunInTown ? 1 : 0];
+	gmenu_slider_steps(&sgOptionsMenu[4], 2);
+	gmenu_slider_set(&sgOptionsMenu[4], 0, 1, sgOptions.Gameplay.bRunInTown);
+	sgOptionsMenu[4].pszStr = kRunInTownToggleNames[!sgOptions.Gameplay.bRunInTown ? 1 : 0];
 }
 
 static void gamemenu_get_gamma()
@@ -271,7 +279,11 @@ void gamemenu_options(bool bActivate)
 {
 	gamemenu_get_music();
 	gamemenu_get_sound();
-	//gamemenu_jogging();
+	if (gbIsMultiplayer) {
+		sgOptionsMenu[kRunInTownOptionIndex].dwFlags &= ~GMENU_ENABLED;
+	} else {
+		gamemenu_update_run_in_town();
+	}
 	gamemenu_get_gamma();
 	gamemenu_get_speed();
 	//gamemenu_get_color_cycling();
@@ -352,14 +364,12 @@ void gamemenu_sound_volume(bool bActivate)
 	gamemenu_get_sound();
 }
 
-void gamemenu_loadjog(bool bActivate)
+void gamemenu_run_in_town(bool bActivate)
 {
-	if (!gbIsMultiplayer) {
-		sgOptions.Gameplay.bRunInTown = !sgOptions.Gameplay.bRunInTown;
-		sgGameInitInfo.bRunInTown = sgOptions.Gameplay.bRunInTown;
-		PlaySFX(IS_TITLEMOV);
-		gamemenu_jogging();
-	}
+	sgOptions.Gameplay.bRunInTown = !sgOptions.Gameplay.bRunInTown;
+	sgGameInitInfo.bRunInTown = sgOptions.Gameplay.bRunInTown;
+	PlaySFX(IS_TITLEMOV);
+	gamemenu_update_run_in_town();
 }
 
 void gamemenu_gamma(bool bActivate)

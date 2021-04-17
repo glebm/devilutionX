@@ -19,7 +19,7 @@ void gamemenu_restart_town(bool bActivate);
 void gamemenu_options(bool bActivate);
 void gamemenu_music_volume(bool bActivate);
 void gamemenu_sound_volume(bool bActivate);
-void gamemenu_loadjog(bool bActivate);
+void gamemenu_run_in_town(bool bActivate);
 void gamemenu_gamma(bool bActivate);
 void gamemenu_speed(bool bActivate);
 void gamemenu_color_cycling(bool bActivate);
