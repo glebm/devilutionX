@@ -1041,8 +1041,8 @@ static void uShape()
 			}
 			if (dung[i][j] == 1) {
 				// BUGFIX: check that i + 1 < 20 and j + 1 < 20 (fixed)
-				if (i + 1 < 20 && j + 1 < 20
-				    && dung[i + 1][j] == 1 && dung[i + 1][j + 1] == 0) {
+				if (i + 1 == 20 || j + 1 == 20
+				    || (dung[i + 1][j] == 1 && dung[i + 1][j + 1] == 0)) {
 					hallok[i] = true;
 				} else {
 					hallok[i] = false;
@@ -1061,7 +1061,8 @@ static void uShape()
 					rv = 0;
 				} else {
 					dung[rv][j] = 1;
-					dung[rv + 1][j] = 1;
+					if (rv < 19)
+						dung[rv + 1][j] = 1;
 				}
 			}
 		} else {
