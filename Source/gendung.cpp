@@ -19,7 +19,7 @@
 #include "options.h"
 #include "town.h"
 #include "utils/sdl_compat.h"
-#include "utils/surface_to_cel.hpp"
+#include "utils/surface_to_cl2.hpp"
 
 namespace devilution {
 
@@ -521,9 +521,9 @@ void SetDungeonMicros()
 			targetBufferPosition.y += TILE_HEIGHT;
 		}
 		MicroTiles.emplace_back(
-		    SurfaceToCel(
+		    SurfaceToCl2(
 		        Surface { microTile.get() }.subregion(0, frameStartY, TILE_WIDTH, TILE_HEIGHT * blocks / 2 - frameStartY),
-		        /*numFrames=*/1, /*generateFrameHeaders=*/false, /*transparentColor=*/225)
+		        /*numFrames=*/1, /*transparentColor=*/225)
 		        .sprite.release());
 	}
 	pDungeonCels = nullptr;
