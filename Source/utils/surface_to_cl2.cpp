@@ -175,10 +175,10 @@ OwnedCelSpriteWithFrameHeight SurfaceToCl2(const Surface &surface, unsigned numF
 			} else {
 				AppendCl2Line(dataPtr, width, transparentColorIndex, celData);
 			}
-			if (prevSize + 1 == celData.size() && celData[celData.size() - 1] < 0x80) {
+			if (prevSize + 1 == celData.size() && celData.back() < 0x80) {
 				// The entire line is transparent.
 				// In CL2, transparent lines can cross boundaries.
-				transparentContinueWidth = 191 - celData.back();
+				transparentContinueWidth = celData.back();
 			} else {
 				transparentContinueWidth = 0;
 			}
