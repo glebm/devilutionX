@@ -101,6 +101,7 @@ struct Missile {
 	uint8_t _miAnimType;
 	MissileDataFlags _miAnimFlags;
 	OptionalClxSpriteList _miAnimData;
+	const uint8_t *trn; // optional
 	int _miAnimDelay; // Tick length of each frame in the current animation
 	int _miAnimLen;   // Number of frames in current animation
 

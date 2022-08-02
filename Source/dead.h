@@ -18,9 +18,9 @@ static constexpr unsigned MaxCorpses = 31;
 
 struct Corpse {
 	OptionalClxSpriteListOrSheet sprites;
+	const uint8_t *trn;
 	int frame;
 	uint16_t width;
-	uint8_t translationPaletteIndex;
 
 	/**
 	 * @brief Returns the sprite list for a given direction.

@@ -25,6 +25,7 @@ void InitDeadAnimationFromMonster(Corpse &corpse, const CMonster &mon)
 	} else {
 		corpse.sprites = std::nullopt;
 	}
+	corpse.trn = mon.getTrn(MonsterGraphic::Death);
 	corpse.frame = animData.frames - 1;
 	corpse.width = animData.width;
 }
@@ -42,7 +43,6 @@ void InitCorpses()
 			continue;
 
 		InitDeadAnimationFromMonster(Corpses[nd], monsterType);
-		Corpses[nd].translationPaletteIndex = 0;
 		nd++;
 
 		monsterType.corpseId = nd;
@@ -55,7 +55,6 @@ void InitCorpses()
 		Corpses[nd].sprites.emplace(*MissileSpriteData[MFILE_SHATTER1].sprites);
 	Corpses[nd].frame = 11;
 	Corpses[nd].width = 128;
-	Corpses[nd].translationPaletteIndex = 0;
 	nd++;
 
 	stonendx = nd;
@@ -64,7 +63,7 @@ void InitCorpses()
 		auto &monster = Monsters[ActiveMonsters[i]];
 		if (monster.isUnique()) {
 			InitDeadAnimationFromMonster(Corpses[nd], monster.type());
-			Corpses[nd].translationPaletteIndex = ActiveMonsters[i] + 1;
+			Corpses[nd].trn = Monsters[ActiveMonsters[i]].uniqueMonsterTRN.get();
 			nd++;
 
 			monster.corpseId = nd;

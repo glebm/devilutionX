@@ -21,6 +21,7 @@
 #include "monstdat.h"
 #include "spelldat.h"
 #include "textdat.h"
+#include "utils/enum_traits.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -161,7 +162,7 @@ enum class MonsterSound {
 };
 
 struct CMonster {
-	std::unique_ptr<byte[]> animData;
+	std::unique_ptr<uint8_t[]> trn;
 	AnimStruct anims[6];
 	std::unique_ptr<TSnd> sounds[4][2];
 	const MonsterData *data;
@@ -177,6 +178,14 @@ struct CMonster {
 	[[nodiscard]] const AnimStruct &getAnimData(MonsterGraphic graphic) const
 	{
 		return anims[static_cast<int>(graphic)];
+	}
+
+	[[nodiscard]] const uint8_t *getTrn(MonsterGraphic graphic) const
+	{
+		if (graphic == MonsterGraphic::Walk && MonstersData[type].spriteId == MonsterSpriteId::Counselor) {
+			return nullptr;
+		}
+		return trn.get();
 	}
 };
 

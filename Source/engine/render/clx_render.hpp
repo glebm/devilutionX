@@ -69,6 +69,16 @@ void ClxDrawOutlineSkipColorZero(const Surface &out, uint8_t col, Point position
 void ClxDrawTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn);
 
 /**
+ * @brief Blit CL2 sprite, and apply given TRN to the given buffer at the given coordinates
+ * @param out Output buffer
+ * @param position Target buffer coordinate
+ * @param clx CLX frame
+ * @param trn1 The first TRN to use.
+ * @param trn2 The second TRN to use.
+ */
+void ClxDrawTRN2(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn1, const uint8_t *trn2);
+
+/**
  * @brief Same as ClxDrawTRN but position.y is the top of the sprite instead of the bottom.
  */
 inline void RenderClxSpriteWithTRN(const Surface &out, ClxSprite clx, Point position, const uint8_t *trn)
@@ -93,6 +103,20 @@ inline void ClxDrawLight(const Surface &out, Point position, ClxSprite clx)
 		ClxDrawTRN(out, position, clx, &LightTables[LightTableIndex * 256]);
 	else
 		ClxDraw(out, position, clx);
+}
+
+/**
+ * @brief Blit CL2 sprite with TRN and lighting to the given buffer at the given coordinates
+ * @param out Output buffer
+ * @param position Target buffer coordinate
+ * @param clx CLX frame
+ */
+inline void ClxDrawLightTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn)
+{
+	if (LightTableIndex != 0)
+		ClxDrawTRN2(out, position, clx, trn, &LightTables[LightTableIndex * 256]);
+	else
+		ClxDrawTRN(out, position, clx, trn);
 }
 
 /**

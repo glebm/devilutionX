@@ -539,6 +539,7 @@ void SetMissAnim(Missile &missile, int animtype)
 	missile._miAnimFlags = MissileSpriteData[animtype].flags;
 	if (!HeadlessMode) {
 		missile._miAnimData = MissileSpriteData[animtype].spritesForDirection(static_cast<size_t>(dir));
+		missile.trn = nullptr;
 	}
 	missile._miAnimDelay = MissileSpriteData[animtype].animDelay[dir];
 	missile._miAnimLen = MissileSpriteData[animtype].animLen[dir];
@@ -4046,6 +4047,7 @@ void missiles_process_charge()
 {
 	for (auto &missile : Missiles) {
 		missile._miAnimData = MissileSpriteData[missile._miAnimType].spritesForDirection(missile._mimfnum);
+		missile.trn = nullptr;
 		if (missile._mitype != MIS_RHINO)
 			continue;
 
@@ -4060,6 +4062,7 @@ void missiles_process_charge()
 			graphic = MonsterGraphic::Walk;
 		}
 		missile._miAnimData = mon.getAnimData(graphic).spritesForDirection(static_cast<Direction>(missile._mimfnum));
+		missile.trn = mon.getTrn(graphic);
 	}
 }
 

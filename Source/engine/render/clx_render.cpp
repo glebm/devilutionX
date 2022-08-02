@@ -745,6 +745,11 @@ void ClxDrawTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t
 	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitWithMap { trn });
 }
 
+void ClxDrawTRN2(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn1, const uint8_t *trn2)
+{
+	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitWithMap2 { trn1, trn2 });
+}
+
 void ClxDrawBlendedTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn)
 {
 	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitBlendedWithMap { trn });

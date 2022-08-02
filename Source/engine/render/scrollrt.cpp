@@ -322,12 +322,26 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 
 	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, 0 } };
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
-	if (missile._miUniqTrans != 0)
-		ClxDrawTRN(out, missileRenderPosition, sprite, Monsters[missile._misource].uniqueMonsterTRN.get());
-	else if (missile._miLightFlag)
-		ClxDrawLight(out, missileRenderPosition, sprite);
-	else
-		ClxDraw(out, missileRenderPosition, sprite);
+	const uint8_t *trn = nullptr;
+	if (missile._miUniqTrans != 0) {
+		trn = Monsters[missile._misource].uniqueMonsterTRN.get();
+	} else if (missile.trn != nullptr) {
+		trn = missile.trn;
+	}
+
+	if (missile._miLightFlag) {
+		if (missile.trn) {
+			ClxDrawLightTRN(out, missileRenderPosition, sprite, trn);
+		} else {
+			ClxDrawLight(out, missileRenderPosition, sprite);
+		}
+	} else {
+		if (missile.trn) {
+			ClxDrawTRN(out, missileRenderPosition, sprite, trn);
+		} else {
+			ClxDraw(out, missileRenderPosition, sprite);
+		}
+	}
 }
 
 /**
@@ -426,17 +440,24 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawTRN(out, targetBufferPosition, sprite, GetInfravisionTRN());
 		return;
 	}
-	uint8_t *trn = nullptr;
+	const uint8_t *trn = nullptr;
 	if (monster.isUnique())
 		trn = monster.uniqueMonsterTRN.get();
 	if (monster.mode == MonsterMode::Petrified)
 		trn = GetStoneTRN();
 	if (MyPlayer->_pInfraFlag && LightTableIndex > 8)
 		trn = GetInfravisionTRN();
-	if (trn != nullptr)
+	if (trn != nullptr) {
 		ClxDrawTRN(out, targetBufferPosition, sprite, trn);
-	else
-		ClxDrawLight(out, targetBufferPosition, sprite);
+	} else {
+		if (!(monster.isWalking() && monster.data().spriteId == MonsterSpriteId::Counselor))
+			trn = monster.type().trn.get();
+		if (trn != nullptr) {
+			ClxDrawLightTRN(out, targetBufferPosition, sprite, trn);
+		} else {
+			ClxDrawLight(out, targetBufferPosition, sprite);
+		}
+	}
 }
 
 /**
@@ -781,9 +802,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			Corpse &corpse = Corpses[(bDead & 0x1F) - 1];
 			const Point position { targetBufferPosition.x - CalculateWidth2(corpse.width), targetBufferPosition.y };
 			const ClxSprite sprite = corpse.spritesForDirection(static_cast<Direction>((bDead >> 5) & 7))[corpse.frame];
-			if (corpse.translationPaletteIndex != 0) {
-				const uint8_t *trn = Monsters[corpse.translationPaletteIndex - 1].uniqueMonsterTRN.get();
-				ClxDrawTRN(out, position, sprite, trn);
+			if (corpse.trn != nullptr) {
+				ClxDrawLightTRN(out, position, sprite, corpse.trn);
 			} else {
 				ClxDrawLight(out, position, sprite);
 			}

@@ -60,6 +60,13 @@ bool sgbSaveSoundOn;
 
 namespace {
 
+struct MonsterSpritesData {
+	std::unique_ptr<byte[]> data;
+	std::unique_ptr<uint32_t[]> offsets;
+};
+
+std::array<MonsterSpritesData, enum_size<MonsterSpriteId>::value> MonsterSprites;
+
 constexpr int NightmareToHitBonus = 85;
 constexpr int HellToHitBonus = 120;
 
@@ -98,23 +105,8 @@ void InitMonsterTRN(CMonster &monst)
 {
 	char path[64];
 	*BufCopy(path, "Monsters\\", monst.data->trnFile, ".TRN") = '\0';
-	std::array<uint8_t, 256> colorTranslations;
-	LoadFileInMem(path, colorTranslations);
-	std::replace(colorTranslations.begin(), colorTranslations.end(), 255, 0);
-
-	const size_t numAnims = GetNumAnims(*monst.data);
-	for (size_t i = 0; i < numAnims; i++) {
-		if (i == 1 && IsAnyOf(monst.type, MT_COUNSLR, MT_MAGISTR, MT_CABALIST, MT_ADVOCATE)) {
-			continue;
-		}
-
-		AnimStruct &anim = monst.anims[i];
-		if (anim.sprites->isSheet()) {
-			ClxApplyTrans(ClxSpriteSheet { anim.sprites->sheet() }, colorTranslations.data());
-		} else {
-			ClxApplyTrans(ClxSpriteList { anim.sprites->list() }, colorTranslations.data());
-		}
-	}
+	monst.trn = LoadFileInMem<uint8_t>(path);
+	std::replace(monst.trn.get(), monst.trn.get() + 256, 255, 0);
 }
 
 void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point position)
@@ -3335,7 +3327,7 @@ void InitMonsterSND(CMonster &monsterType)
 	};
 
 	const MonsterData &data = MonstersData[monsterType.type];
-	string_view soundSuffix = data.soundSuffix != nullptr ? data.soundSuffix : data.assetsSuffix;
+	string_view soundSuffix = data.soundSuffix != nullptr ? data.soundSuffix : data.spritePath();
 
 	for (int i = 0; i < 4; i++) {
 		string_view prefix = prefixes[i];
@@ -3359,13 +3351,16 @@ void InitMonsterGFX(CMonster &monsterType)
 		return monsterData.frames[index] != 0;
 	};
 	constexpr size_t MaxAnims = 6;
-	std::array<uint32_t, MaxAnims + 1> animOffsets;
+	MonsterSpritesData &spriteData = MonsterSprites[static_cast<size_t>(monsterData.spriteId)];
 	if (!HeadlessMode) {
-		monsterType.animData = MultiFileLoader<MaxAnims> {}(
-		    numAnims,
-		    FileNameWithCharAffixGenerator({ "Monsters\\", monsterData.assetsSuffix }, ".CL2", Animletter),
-		    animOffsets.data(),
-		    hasAnim);
+		if (spriteData.data == nullptr) {
+			spriteData.offsets = std::unique_ptr<uint32_t[]> { new uint32_t[numAnims + 1] };
+			spriteData.data = MultiFileLoader<MaxAnims> {}(
+			    numAnims,
+			    FileNameWithCharAffixGenerator({ "Monsters\\", monsterData.spritePath() }, ".CL2", Animletter),
+			    spriteData.offsets.get(),
+			    hasAnim);
+		}
 	}
 
 	for (size_t i = 0, j = 0; i < numAnims; ++i) {
@@ -3378,9 +3373,9 @@ void InitMonsterGFX(CMonster &monsterType)
 		anim.rate = monsterData.rate[i];
 		anim.width = monsterData.width;
 		if (!HeadlessMode) {
-			const uint32_t begin = animOffsets[j];
-			const uint32_t end = animOffsets[j + 1];
-			auto spritesData = reinterpret_cast<uint8_t *>(&monsterType.animData[begin]);
+			const uint32_t begin = spriteData.offsets[j];
+			const uint32_t end = spriteData.offsets[j + 1];
+			auto spritesData = reinterpret_cast<uint8_t *>(&spriteData.data[begin]);
 			const uint16_t numLists = Cl2ToClx(spritesData, end - begin, PointerOrValue<uint16_t> { monsterData.width });
 			anim.sprites = ClxSpriteListOrSheet { spritesData, numLists };
 		}
@@ -3815,7 +3810,6 @@ bool Walk(Monster &monster, Direction md)
 		return false;
 	}
 
-	int mwi = monster.type().getAnimData(MonsterGraphic::Walk).frames - 1;
 	switch (md) {
 	case Direction::North:
 		WalkNorthwards(monster, -1, -1, Direction::North);
@@ -4003,7 +3997,7 @@ void ProcessMonsters()
 void FreeMonsters()
 {
 	for (CMonster &monsterType : LevelMonsterTypes) {
-		monsterType.animData = nullptr;
+		monsterType.trn = nullptr;
 		for (AnimStruct &animData : monsterType.anims) {
 			animData.sprites = std::nullopt;
 		}
@@ -4013,6 +4007,10 @@ void FreeMonsters()
 				sound = nullptr;
 			}
 		}
+	}
+	for (MonsterSpritesData &spritesData : MonsterSprites) {
+		spritesData.data = nullptr;
+		spritesData.offsets = nullptr;
 	}
 }
 
