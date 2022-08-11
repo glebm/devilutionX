@@ -160,8 +160,6 @@ if(PACKET_ENCRYPTION)
   endif()
 endif()
 
-add_subdirectory(3rdParty/libsmackerdec)
-
 if(WIN32 AND NOT UWP_LIB)
   add_subdirectory(3rdParty/find_steam_game)
 endif()
@@ -182,7 +180,25 @@ else()
   add_subdirectory(3rdParty/simpleini)
 endif()
 
+if(NOT DEFINED DEVILUTIONX_SYSTEM_TSL_SPARSE_MAP)
+  find_package(tsl-sparse-map QUIET)
+  if(tsl-sparse-map-FOUND)
+    message("-- Found tsl-sparse-map")
+  else()
+    message("-- Suitable tsl-sparse-map package not found, will use tsl-sparse-map from source")
+    set(DEVILUTIONX_SYSTEM_TSL_SPARSE_MAP OFF)
+  endif()
+endif()
+dependency_options("tsl-sparse-map" DEVILUTIONX_SYSTEM_TSL_SPARSE_MAP ON DEVILUTIONX_STATIC_TSL_SPARSE_MAP)
+if(DEVILUTIONX_SYSTEM_TSL_SPARSE_MAP)
+  find_package(tsl-sparse-map REQUIRED)
+else()
+  add_subdirectory(3rdParty/tsl_sparse_map)
+endif()
+
 add_subdirectory(3rdParty/libmpq)
+
+add_subdirectory(3rdParty/libsmackerdec)
 
 add_subdirectory(3rdParty/tl)
 

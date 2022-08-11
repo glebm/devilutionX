@@ -255,6 +255,7 @@ target_link_libraries(libdevilutionx PUBLIC
   libsmackerdec
   simpleini::simpleini
   tl
+  tsl::sparse_map
   hoehrmann_utf8
 )
 

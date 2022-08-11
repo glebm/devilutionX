@@ -33,10 +33,10 @@ import subprocess
 import sys
 
 # We only package the dependencies that are:
-# 1. Uncommon in package managers (sdl_audiolib and simpleini).
+# 1. Uncommon in package managers (sdl_audiolib, simpleini, tsl_sparse_map).
 # 2. Require devilutionx forks (all others).
 _DEPS = ['asio', 'libmpq', 'libsmackerdec',
-         'libzt', 'sdl_audiolib', 'simpleini']
+         'libzt', 'sdl_audiolib', 'simpleini', 'tsl_sparse_map']
 _ALWAYS_VENDORED_DEPS = ['asio', 'libmpq', 'libsmackerdec', 'libzt']
 
 # These dependencies are not vendored by default.
