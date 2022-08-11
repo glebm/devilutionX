@@ -1,10 +1,10 @@
 #include "utils/language.h"
 
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 #include <function_ref.hpp>
+#include <tsl/sparse_map.h>
 
 #include "engine/assets.hpp"
 #include "options.h"
@@ -49,7 +49,11 @@ struct StringEq {
 	}
 };
 
-std::vector<std::unordered_map<const char *, TranslationRef, StringHash, StringEq>> translation = { {}, {} };
+std::vector<
+    tsl::sparse_map<const char *, TranslationRef, StringHash, StringEq,
+        std::allocator<std::pair<const char *, TranslationRef>>, tsl::sh::power_of_two_growth_policy<2>, tsl::sh::exception_safety::basic,
+        tsl::sh::sparsity::high>>
+    translation = { {}, {} };
 
 constexpr uint32_t TranslationRefOffsetBits = 19;
 constexpr uint32_t TranslationRefSizeBits = 32 - TranslationRefOffsetBits; // 13

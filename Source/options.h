@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <forward_list>
-#include <unordered_map>
 
 #include <SDL_version.h>
+#include <tsl/sparse_map.h>
 
 #include "controls/controller.h"
 #include "controls/controller_buttons.h"
@@ -685,9 +685,9 @@ struct KeymapperOptions : OptionCategoryBase {
 
 private:
 	std::forward_list<Action> actions;
-	std::unordered_map<uint32_t, std::reference_wrapper<Action>> keyIDToAction;
-	std::unordered_map<uint32_t, std::string> keyIDToKeyName;
-	std::unordered_map<std::string, uint32_t> keyNameToKeyID;
+	tsl::sparse_map<uint32_t, std::reference_wrapper<Action>> keyIDToAction;
+	tsl::sparse_map<uint32_t, std::string> keyIDToKeyName;
+	tsl::sparse_map<std::string, uint32_t> keyNameToKeyID;
 };
 
 /** The Padmapper maps gamepad buttons to actions. */
@@ -755,7 +755,7 @@ private:
 	std::forward_list<Action> actions;
 	std::array<const Action *, enum_size<ControllerButton>::value> buttonToReleaseAction;
 	std::array<std::string, enum_size<ControllerButton>::value> buttonToButtonName;
-	std::unordered_map<std::string, ControllerButton> buttonNameToButton;
+	tsl::sparse_map<std::string, ControllerButton> buttonNameToButton;
 	bool committed = false;
 
 	const Action *FindAction(ControllerButton button) const;

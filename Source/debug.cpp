@@ -41,7 +41,7 @@ bool DebugToggle = false;
 bool DebugGodMode = false;
 bool DebugVision = false;
 bool DebugGrid = false;
-std::unordered_map<int, Point> DebugCoordsMap;
+tsl::sparse_map<int, Point> DebugCoordsMap;
 bool DebugScrollViewEnabled = false;
 std::string debugTRN;
 
@@ -366,7 +366,7 @@ std::string ExportDun(const string_view parameter)
 	return StrCat(levelName, " saved. Happy mapping!");
 }
 
-std::unordered_map<string_view, _talker_id> TownerShortNameToTownerId = {
+tsl::sparse_map<string_view, _talker_id> TownerShortNameToTownerId = {
 	{ "griswold", _talker_id::TOWN_SMITH },
 	{ "pepin", _talker_id::TOWN_HEALER },
 	{ "ogden", _talker_id::TOWN_TAVERN },

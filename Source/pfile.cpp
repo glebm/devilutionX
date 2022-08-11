@@ -7,9 +7,9 @@
 
 #include <sstream>
 #include <string>
-#include <unordered_map>
 
 #include <fmt/compile.h>
+#include <tsl/sparse_map.h>
 
 #include "codec.h"
 #include "engine.h"
@@ -246,7 +246,7 @@ inline bool string_ends_with(std::string const &value, std::string const &ending
 	return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
-void CreateDetailDiffs(string_view prefix, string_view memoryMapFile, CompareInfo &compareInfoReference, CompareInfo &compareInfoActual, std::unordered_map<std::string, size_t> &foundDiffs)
+void CreateDetailDiffs(string_view prefix, string_view memoryMapFile, CompareInfo &compareInfoReference, CompareInfo &compareInfoActual, tsl::sparse_map<std::string, size_t> &foundDiffs)
 {
 	// Note: Detail diffs are currently only supported in unit tests
 	std::string memoryMapFileAssetName = StrCat(paths::BasePath(), "/test/fixtures/memory_map/", memoryMapFile, ".txt");
@@ -264,7 +264,7 @@ void CreateDetailDiffs(string_view prefix, string_view memoryMapFile, CompareInf
 	MemoryBuffer buffer(reinterpret_cast<char *>(memoryMapFileData.get()), readBytes);
 	std::istream reader(&buffer);
 
-	std::unordered_map<std::string, CompareCounter> counter;
+	tsl::sparse_map<std::string, CompareCounter> counter;
 
 	auto getCounter = [&](const std::string &counterAsString) {
 		auto it = counter.find(counterAsString);
@@ -450,7 +450,7 @@ HeroCompareResult CompareSaves(const std::string &actualSavePath, const std::str
 			StrAppend(message, "file \"", compareTarget.fileName, "\" has different content.");
 		if (!logDetails)
 			continue;
-		std::unordered_map<std::string, size_t> foundDiffs;
+		tsl::sparse_map<std::string, size_t> foundDiffs;
 		CompareInfo compareInfoReference = { fileDataReference, 0, fileSizeReference, compareTarget.isTownLevel, fileSizeReference != 0 };
 		CompareInfo compareInfoActual = { fileDataActual, 0, fileSizeActual, compareTarget.isTownLevel, fileSizeActual != 0 };
 		CreateDetailDiffs(compareTarget.fileName, compareTarget.memoryMapFileName, compareInfoReference, compareInfoActual, foundDiffs);

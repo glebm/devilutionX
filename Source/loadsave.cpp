@@ -8,10 +8,10 @@
 #include <climits>
 #include <cstring>
 #include <numeric>
-#include <unordered_map>
 
 #include <SDL.h>
 #include <fmt/compile.h>
+#include <tsl/sparse_map.h>
 
 #include "automap.h"
 #include "codec.h"
@@ -1616,7 +1616,7 @@ void SavePortal(SaveHelper *file, int i)
  * @return a map converting from runtime item indexes to the relative position in the save file, used by SaveDroppedItemLocations
  * @see SaveDroppedItemLocations
  */
-std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
+tsl::sparse_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
 {
 	// Vanilla Diablo/Hellfire initialise the ActiveItems and AvailableItems arrays based on saved data, so write valid values for compatibility
 	for (uint8_t i = 0; i < MAXITEMS; i++)
@@ -1624,7 +1624,7 @@ std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
 	for (uint8_t i = 0; i < MAXITEMS; i++)
 		file.WriteLE<uint8_t>((i + ActiveItemCount) % MAXITEMS);
 
-	std::unordered_map<uint8_t, uint8_t> itemIndexes = { { 0, 0 } };
+	tsl::sparse_map<uint8_t, uint8_t> itemIndexes = { { 0, 0 } };
 	for (uint8_t i = 0; i < ActiveItemCount; i++) {
 		itemIndexes[ActiveItems[i] + 1] = i + 1;
 		SaveItem(file, Items[ActiveItems[i]]);
@@ -1637,7 +1637,7 @@ std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
  * @param file interface to the save file
  * @param itemIndexes a map converting from runtime item indexes to the relative position in the save file
  */
-void SaveDroppedItemLocations(SaveHelper &file, const std::unordered_map<uint8_t, uint8_t> &itemIndexes)
+void SaveDroppedItemLocations(SaveHelper &file, const tsl::sparse_map<uint8_t, uint8_t> &itemIndexes)
 {
 	for (int j = 0; j < MAXDUNY; j++) {
 		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)

@@ -13,7 +13,7 @@
 
 // #define DUN_RENDER_STATS
 #ifdef DUN_RENDER_STATS
-#include <unordered_map>
+#include <tsl/sparse_map.h>
 #endif
 
 namespace devilution {
@@ -249,7 +249,7 @@ struct DunRenderTypeHash {
 		return std::hash<uint32_t> {}((1 < static_cast<uint8_t>(t.tileType)) | static_cast<uint8_t>(t.maskType));
 	}
 };
-extern std::unordered_map<DunRenderType, size_t, DunRenderTypeHash> DunRenderStats;
+extern tsl::sparse_map<DunRenderType, size_t, DunRenderTypeHash> DunRenderStats;
 
 string_view TileTypeToString(TileType tileType);
 

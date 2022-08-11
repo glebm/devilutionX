@@ -6,9 +6,9 @@
 #include <climits>
 #include <list>
 #include <memory>
-#include <unordered_map>
 
 #include <fmt/format.h>
+#include <tsl/sparse_map.h>
 
 #include "DiabloUI/diabloui.h"
 #include "automap.h"
@@ -173,7 +173,7 @@ struct DObjectStr {
 
 struct DLevel {
 	TCmdPItem item[MAXITEMS];
-	std::unordered_map<WorldTilePosition, DObjectStr> object;
+	tsl::sparse_map<WorldTilePosition, DObjectStr> object;
 	DMonsterStr monster[MaxMonsters];
 };
 
@@ -213,14 +213,14 @@ constexpr size_t MAX_CHUNKS = MAX_MULTIPLAYERLEVELS + 4;
 uint32_t sgdwOwnerWait;
 uint32_t sgdwRecvOffset;
 int sgnCurrMegaPlayer;
-std::unordered_map<uint8_t, DLevel> DeltaLevels;
+tsl::sparse_map<uint8_t, DLevel> DeltaLevels;
 uint8_t sbLastCmd;
 /**
  * @brief buffer used to receive level deltas, size is the worst expected case assuming every object on a level was touched
  */
 byte sgRecvBuf[1U + sizeof(DLevel::item) + sizeof(uint8_t) + (sizeof(WorldTilePosition) + sizeof(_cmd_id)) * MAXOBJECTS + sizeof(DLevel::monster)];
 _cmd_id sgbRecvCmd;
-std::unordered_map<uint8_t, LocalLevel> LocalLevels;
+tsl::sparse_map<uint8_t, LocalLevel> LocalLevels;
 DJunk sgJunk;
 bool sgbDeltaChanged;
 uint8_t sgbDeltaChunks;
@@ -240,10 +240,12 @@ uint8_t GetLevelForMultiplayer(uint8_t level, bool isSetLevel)
 /** @brief Gets a delta level. */
 DLevel &GetDeltaLevel(uint8_t level)
 {
-	auto keyIt = DeltaLevels.find(level);
+	tsl::sparse_map<uint8_t, DLevel>::iterator keyIt = DeltaLevels.find(level);
 	if (keyIt != DeltaLevels.end())
-		return keyIt->second;
-	DLevel &deltaLevel = DeltaLevels[level];
+		return keyIt.value();
+	auto emplaceRet = DeltaLevels.emplace(level, DLevel {});
+	assert(emplaceRet.second);
+	DLevel &deltaLevel = emplaceRet.first.value();
 	memset(&deltaLevel.item, 0xFF, sizeof(deltaLevel.item));
 	memset(&deltaLevel.monster, 0xFF, sizeof(deltaLevel.monster));
 	return deltaLevel;
@@ -456,7 +458,7 @@ size_t DeltaImportItem(const byte *src, TCmdPItem *dst)
 	return size;
 }
 
-byte *DeltaExportObject(byte *dst, const std::unordered_map<WorldTilePosition, DObjectStr> &src)
+byte *DeltaExportObject(byte *dst, const tsl::sparse_map<WorldTilePosition, DObjectStr> &src)
 {
 	*dst++ = static_cast<byte>(src.size());
 	for (auto &pair : src) {
@@ -468,7 +470,7 @@ byte *DeltaExportObject(byte *dst, const std::unordered_map<WorldTilePosition, D
 	return dst;
 }
 
-const byte *DeltaImportObjects(const byte *src, std::unordered_map<WorldTilePosition, DObjectStr> &dst)
+const byte *DeltaImportObjects(const byte *src, tsl::sparse_map<WorldTilePosition, DObjectStr> &dst)
 {
 	dst.clear();
 
@@ -2606,8 +2608,8 @@ void run_delta_info()
 void DeltaExportData(int pnum)
 {
 	if (sgbDeltaChanged) {
-		for (auto &it : DeltaLevels) {
-			DLevel &deltaLevel = it.second;
+		for (auto it = DeltaLevels.begin(), end = DeltaLevels.end(); it != end; ++it) {
+			DLevel &deltaLevel = it.value();
 
 			const size_t bufferSize = 1U                                                      /* marker byte, always 0 */
 			    + sizeof(uint8_t)                                                             /* level id */
@@ -2618,7 +2620,7 @@ void DeltaExportData(int pnum)
 			std::unique_ptr<byte[]> dst { new byte[bufferSize] };
 
 			byte *dstEnd = &dst.get()[1];
-			*dstEnd = static_cast<byte>(it.first);
+			*dstEnd = static_cast<byte>(it.key());
 			dstEnd += sizeof(uint8_t);
 			dstEnd = DeltaExportItem(dstEnd, deltaLevel.item);
 			dstEnd = DeltaExportObject(dstEnd, deltaLevel.object);

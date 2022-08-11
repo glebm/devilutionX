@@ -7,10 +7,10 @@
 
 #include <array>
 #include <cstddef>
-#include <unordered_map>
 #include <utility>
 
 #include <fmt/compile.h>
+#include <tsl/sparse_map.h>
 
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/ui_item.h"
@@ -37,9 +37,9 @@ namespace {
 constexpr char32_t ZWSP = U'\u200B'; // Zero-width space
 
 using Font = const OwnedClxSpriteList;
-std::unordered_map<uint32_t, OptionalOwnedClxSpriteList> Fonts;
+tsl::sparse_map<uint32_t, OptionalOwnedClxSpriteList> Fonts;
 
-std::unordered_map<uint32_t, std::array<uint8_t, 256>> FontKerns;
+tsl::sparse_map<uint32_t, std::array<uint8_t, 256>> FontKerns;
 std::array<int, 6> FontSizes = { 12, 24, 30, 42, 46, 22 };
 std::array<uint8_t, 6> CJKWidth = { 17, 24, 28, 41, 47, 16 };
 std::array<uint8_t, 6> HangulWidth = { 15, 20, 24, 35, 39, 15 };
@@ -148,7 +148,7 @@ uint32_t GetFontId(GameFontTables size, uint16_t row)
 	return (size << 16) | row;
 }
 
-std::array<uint8_t, 256> *LoadFontKerning(GameFontTables size, uint16_t row)
+const std::array<uint8_t, 256> *LoadFontKerning(GameFontTables size, uint16_t row)
 {
 	uint32_t fontId = GetFontId(size, row);
 
@@ -389,7 +389,7 @@ uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Poin
     UiFlags flags, GameFontTables size, text_color color, bool outline)
 {
 	Font *font = nullptr;
-	std::array<uint8_t, 256> *kerning = nullptr;
+	const std::array<uint8_t, 256> *kerning = nullptr;
 	uint32_t currentUnicodeRow = 0;
 
 	char32_t next;
@@ -451,7 +451,7 @@ int GetLineWidth(string_view text, GameFontTables size, int spacing, int *charac
 
 	uint32_t codepoints = 0;
 	uint32_t currentUnicodeRow = 0;
-	std::array<uint8_t, 256> *kerning = nullptr;
+	const std::array<uint8_t, 256> *kerning = nullptr;
 	char32_t next;
 	while (!text.empty()) {
 		next = ConsumeFirstUtf8CodePoint(&text);
@@ -484,7 +484,7 @@ int GetLineWidth(string_view fmt, DrawStringFormatArg *args, std::size_t argsLen
 
 	uint32_t codepoints = 0;
 	uint32_t currentUnicodeRow = 0;
-	std::array<uint8_t, 256> *kerning = nullptr;
+	const std::array<uint8_t, 256> *kerning = nullptr;
 	char32_t prev = U'\0';
 	char32_t next;
 
@@ -563,7 +563,7 @@ std::string WordWrapString(string_view text, unsigned width, GameFontTables size
 	bool lastBreakableKeep = false;
 	uint32_t currentUnicodeRow = 0;
 	unsigned lineWidth = 0;
-	std::array<uint8_t, 256> *kerning = nullptr;
+	const std::array<uint8_t, 256> *kerning = nullptr;
 
 	char32_t codepoint = U'\0'; // the current codepoint
 	char32_t nextCodepoint;     // the next codepoint
@@ -717,7 +717,7 @@ void DrawStringWithColors(const Surface &out, string_view fmt, DrawStringFormatA
 	const Surface clippedOut = ClipSurface(out, rect);
 
 	Font *font = nullptr;
-	std::array<uint8_t, 256> *kerning = nullptr;
+	const std::array<uint8_t, 256> *kerning = nullptr;
 
 	char32_t prev = U'\0';
 	char32_t next;

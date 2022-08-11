@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include <unordered_map>
+#include <tsl/sparse_map.h>
 
 #include "engine.h"
 #include "engine/clx_sprite.hpp"
@@ -19,7 +19,7 @@ extern bool DebugToggle;
 extern bool DebugGodMode;
 extern bool DebugVision;
 extern bool DebugGrid;
-extern std::unordered_map<int, Point> DebugCoordsMap;
+extern tsl::sparse_map<int, Point> DebugCoordsMap;
 extern bool DebugScrollViewEnabled;
 extern std::string debugTRN;
 
