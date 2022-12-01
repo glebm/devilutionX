@@ -1171,11 +1171,21 @@ void DrawFPS(const Surface &out)
 	uint32_t msSinceLastUpdate = runtimeInMs - lastFpsUpdateInMs;
 	if (msSinceLastUpdate >= 1000) {
 		lastFpsUpdateInMs = runtimeInMs;
+// #define FRAC_FPS
+#ifdef FRAC_FPS
+		int framerate = 10000 * framesSinceLastUpdate / msSinceLastUpdate;
+#else
 		int framerate = 1000 * framesSinceLastUpdate / msSinceLastUpdate;
+#endif
 		framesSinceLastUpdate = 0;
 
+#ifdef FRAC_FPS
+		static char buf[15] {};
+		const char *end = BufCopy(buf, framerate / 10, ".", framerate % 10, " FPS");
+#else
 		static char buf[12] {};
 		const char *end = BufCopy(buf, framerate, " FPS");
+#endif
 		formatted = { buf, static_cast<string_view::size_type>(end - buf) };
 	};
 	DrawString(out, formatted, Point { 8, 68 }, UiFlags::ColorRed);
