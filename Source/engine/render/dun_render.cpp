@@ -580,19 +580,37 @@ template <TransparencyType Transparency, LightType Light>
 DVL_ATTRIBUTE_HOT void RenderLeftTriangleFull(std::uint8_t *dst, int dstPitch, const std::uint8_t *src, const std::uint32_t *mask, const std::uint8_t *tbl)
 {
 	dst += XStep * (LowerHeight - 1);
-	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch + XStep, --mask) {
-		src += 2 * (i % 2);
-		const auto width = XStep * i;
+	uint_fast8_t width = 0;
+	for (unsigned i = 0; i < static_cast<unsigned>(LowerHeight / 2); ++i) {
+		src += 2;
+		width += XStep;
 		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
 		src += width;
+		dst -= dstPitch + XStep;
+		--mask;
+		width += XStep;
+		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
+		src += width;
+		dst -= dstPitch + XStep;
+		--mask;
 	}
 	dst += 2 * XStep;
-	for (auto i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch - XStep, --mask) {
-		src += 2 * (i % 2);
-		const auto width = Width - XStep * i;
+	width = Width;
+	for (unsigned i = 0; i < static_cast<unsigned>(TriangleUpperHeight / 2); ++i) {
+		src += 2;
+		width -= XStep;
 		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
 		src += width;
+		dst -= dstPitch - XStep;
+		--mask;
+		width -= XStep;
+		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
+		src += width;
+		dst -= dstPitch - XStep;
+		--mask;
 	}
+	src += 2;
+	RenderLine<Transparency, Light>(dst, src, 2, tbl, *mask);
 }
 
 template <TransparencyType Transparency, LightType Light>
@@ -697,16 +715,33 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangle(std::uint8_t *dst, int dstPitch, const
 template <TransparencyType Transparency, LightType Light>
 DVL_ATTRIBUTE_HOT void RenderRightTriangleFull(std::uint8_t *dst, int dstPitch, const std::uint8_t *src, const std::uint32_t *mask, const std::uint8_t *tbl)
 {
-	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch, --mask) {
-		const auto width = XStep * i;
+	uint_fast8_t width = 0;
+	for (unsigned i = 0; i < static_cast<unsigned>(LowerHeight / 2); ++i) {
+		width += XStep;
 		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
-		src += width + 2 * (i % 2);
-	}
-	for (auto i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch, --mask) {
-		const auto width = Width - XStep * i;
+		src += width + 2;
+		dst -= dstPitch;
+		--mask;
+		width += XStep;
 		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
-		src += width + 2 * (i % 2);
+		src += width;
+		dst -= dstPitch;
+		--mask;
 	}
+	width = Width;
+	for (unsigned i = 0; i < static_cast<unsigned>(TriangleUpperHeight / 2); ++i) {
+		width -= XStep;
+		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
+		src += width + 2;
+		dst -= dstPitch;
+		--mask;
+		width -= XStep;
+		RenderLine<Transparency, Light>(dst, src, width, tbl, *mask);
+		src += width;
+		dst -= dstPitch;
+		--mask;
+	}
+	RenderLine<Transparency, Light>(dst, src, 2, tbl, *mask);
 }
 
 template <TransparencyType Transparency, LightType Light>
