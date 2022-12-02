@@ -159,8 +159,8 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLineOpaque(uint8_t *DVL_RESTRICT 
 #endif
 	} else { // Partially lit
 #ifndef DEBUG_RENDER_COLOR
-		for (size_t i = 0; i < n; i++) {
-			dst[i] = tbl[src[i]];
+		while (n-- != 0) {
+			*dst++ = tbl[*src++];
 		}
 #else
 		memset(dst, tbl[DBGCOLOR], n);
@@ -173,16 +173,21 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLineTransparent(uint8_t *DVL_REST
 {
 #ifndef DEBUG_RENDER_COLOR
 	if (Light == LightType::FullyDark) {
-		for (size_t i = 0; i < n; i++) {
-			dst[i] = paletteTransparencyLookup[0][dst[i]];
+		while (n-- != 0) {
+			*dst = paletteTransparencyLookup[0][*dst];
+			++dst;
 		}
 	} else if (Light == LightType::FullyLit) {
-		for (size_t i = 0; i < n; i++) {
-			dst[i] = paletteTransparencyLookup[dst[i]][src[i]];
+		while (n-- != 0) {
+			*dst = paletteTransparencyLookup[*dst][*src];
+			++dst;
+			++src;
 		}
 	} else { // Partially lit
-		for (size_t i = 0; i < n; i++) {
-			dst[i] = paletteTransparencyLookup[dst[i]][tbl[src[i]]];
+		while (n-- != 0) {
+			*dst = paletteTransparencyLookup[*dst][tbl[*src]];
+			++dst;
+			++src;
 		}
 	}
 #else
