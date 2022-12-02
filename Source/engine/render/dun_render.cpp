@@ -107,16 +107,14 @@ DVL_ALWAYS_INLINE uint8_t MaskClipLeft(uint8_t count, uint_fast8_t n)
 	return std::min<uint8_t>(count + n, 32);
 }
 
-template <int8_t Shift>
-DVL_ALWAYS_INLINE uint8_t MaskNextLine(uint8_t count)
+DVL_ALWAYS_INLINE uint8_t MaskNextLine(int8_t maskShift, uint8_t mask)
 {
-	return count + Shift;
+	return mask + maskShift;
 }
 
-template <int8_t Shift>
-DVL_ALWAYS_INLINE uint8_t MaskNextLine(uint8_t count, uint8_t n)
+DVL_ALWAYS_INLINE uint8_t MaskNextLine(int8_t maskShift, uint8_t mask, uint8_t n)
 {
-	return count + Shift * n;
+	return mask + maskShift * n;
 }
 
 #ifdef DEBUG_STR
@@ -197,10 +195,10 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLineTransparent(uint8_t *DVL_REST
 #endif
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLine(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, uint_fast8_t n, const uint8_t *DVL_RESTRICT tbl, uint8_t mask, bool maskFlip)
+template <LightType Light>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLine(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, uint_fast8_t n, const uint8_t *DVL_RESTRICT tbl, uint8_t mask, bool maskFlip, int8_t maskShift)
 {
-	if (MaskShift == 0) {
+	if (maskShift == 0) {
 		if (maskFlip) {
 			RenderLineTransparent<Light>(dst, src, n, tbl);
 		} else {
@@ -240,46 +238,46 @@ Clip CalculateClip(int_fast16_t x, int_fast16_t y, int_fast16_t w, int_fast16_t 
 	return clip;
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderSquareFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderSquareFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	for (auto i = 0; i < Height; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, Width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, Width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderSquareClipped(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderSquareClipped(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	src += clip.bottom * Height + clip.left;
 	for (auto i = 0; i < clip.height; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, clip.width, tbl, MaskClipLeft(mask, clip.left), maskFlip);
+		RenderLine<Light>(dst, src, clip.width, tbl, MaskClipLeft(mask, clip.left), maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderSquare(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderSquare(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width && clip.height == Height) {
-		RenderSquareFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+		RenderSquareFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 	} else {
-		RenderSquareClipped<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderSquareClipped<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderTransparentSquareFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	for (auto i = 0; i < Height; ++i, dst -= dstPitch + Width) {
 		uint_fast8_t drawWidth = Width;
 		while (drawWidth > 0) {
 			auto v = static_cast<int8_t>(*src++);
 			if (v > 0) {
-				RenderLine<Light, MaskShift>(dst, src, v, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip);
+				RenderLine<Light>(dst, src, v, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip, maskShift);
 				src += v;
 			} else {
 				v = -v;
@@ -287,13 +285,13 @@ DVL_ATTRIBUTE_HOT void RenderTransparentSquareFull(uint8_t *DVL_RESTRICT dst, in
 			dst += v;
 			drawWidth -= v;
 		}
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
+template <LightType Light>
 // NOLINTnextLine(readability-function-cognitive-complexity): Actually complex and has to be fast.
-DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto skipRestOfTheLine = [&src](int_fast16_t remainingWidth) {
 		while (remainingWidth > 0) {
@@ -324,7 +322,7 @@ DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst,
 			if (v > 0) {
 				if (v > remainingLeftClip) {
 					const auto overshoot = v - remainingLeftClip;
-					RenderLine<Light, MaskShift>(dst, src + remainingLeftClip, overshoot, tbl, MaskClipLeft(mask, Width - remainingLeftClip), maskFlip);
+					RenderLine<Light>(dst, src + remainingLeftClip, overshoot, tbl, MaskClipLeft(mask, Width - remainingLeftClip), maskFlip, maskShift);
 					dst += overshoot;
 					drawWidth -= overshoot;
 				}
@@ -345,13 +343,13 @@ DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst,
 			auto v = static_cast<int8_t>(*src++);
 			if (v > 0) {
 				if (v > drawWidth) {
-					RenderLine<Light, MaskShift>(dst, src, drawWidth, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip);
+					RenderLine<Light>(dst, src, drawWidth, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip, maskShift);
 					src += v;
 					dst += drawWidth;
 					drawWidth -= v;
 					break;
 				}
-				RenderLine<Light, MaskShift>(dst, src, v, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip);
+				RenderLine<Light>(dst, src, v, tbl, MaskClipLeft(mask, Width - drawWidth), maskFlip, maskShift);
 				src += v;
 			} else {
 				v = -v;
@@ -368,17 +366,17 @@ DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst,
 		// Skip the rest of src line if clipping on the right
 		assert(drawWidth <= 0);
 		skipRestOfTheLine(clip.right + drawWidth);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width && clip.height == Height) {
-		RenderTransparentSquareFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+		RenderTransparentSquareFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 	} else {
-		RenderTransparentSquareClipped<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderTransparentSquareClipped<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
@@ -420,29 +418,29 @@ std::size_t CalculateTriangleSourceSkipUpperBottom(int_fast16_t numLines)
 	return 2 * TriangleUpperHeight * numLines - numLines * (numLines - 1) + 2 * ((numLines + 1) / 2);
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTriangleFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	dst += XStep * (LowerHeight - 1);
 	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch + XStep) {
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	dst += 2 * XStep;
 	for (auto i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch - XStep) {
 		src += 2 * (i % 2);
 		const auto width = Width - XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
@@ -451,9 +449,9 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t *DVL_RESTRICT dst,
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch + XStep) {
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
@@ -461,14 +459,14 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t *DVL_RESTRICT dst,
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch - XStep) {
 		src += 2 * (i % 2);
 		const auto width = Width - XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	const auto clipLeft = clip.left;
@@ -481,9 +479,9 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(uint8_t *DVL_RESTRI
 		const auto startX = Width - XStep * i;
 		const auto skip = startX < clipLeft ? clipLeft - startX : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip);
+			RenderLine<Light>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
@@ -494,14 +492,14 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(uint8_t *DVL_RESTRI
 		const auto startX = XStep * i;
 		const auto skip = startX < clipLeft ? clipLeft - startX : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip);
+			RenderLine<Light>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	const auto clipRight = clip.right;
@@ -512,9 +510,9 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(uint8_t *DVL_RESTR
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
 		if (width > clipRight)
-			RenderLine<Light, MaskShift>(dst, src, width - clipRight, tbl, mask, maskFlip);
+			RenderLine<Light>(dst, src, width - clipRight, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
@@ -524,69 +522,69 @@ DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(uint8_t *DVL_RESTR
 		const auto width = Width - XStep * i;
 		if (width <= clipRight)
 			break;
-		RenderLine<Light, MaskShift>(dst, src, width - clipRight, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width - clipRight, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == TriangleHeight) {
-			RenderLeftTriangleFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+			RenderLeftTriangleFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 		} else {
-			RenderLeftTriangleClipVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+			RenderLeftTriangleClipVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderLeftTriangleClipLeftAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTriangleClipLeftAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else {
-		RenderLeftTriangleClipRightAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTriangleClipRightAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTriangleFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTriangleFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	for (auto i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch) {
 		const auto width = Width - XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
 		const auto width = Width - XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	const auto clipLeft = clip.left;
@@ -595,9 +593,9 @@ DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(uint8_t *DVL_RESTR
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
 		if (width > clipLeft)
-			RenderLine<Light, MaskShift>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip);
+			RenderLine<Light>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
@@ -605,14 +603,14 @@ DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(uint8_t *DVL_RESTR
 		const auto width = Width - XStep * i;
 		if (width <= clipLeft)
 			break;
-		RenderLine<Light, MaskShift>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip);
+		RenderLine<Light>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY(clip);
 	const auto clipRight = clip.right;
@@ -622,9 +620,9 @@ DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical(uint8_t *DVL_REST
 		const auto width = XStep * i;
 		const auto skip = Width - width < clipRight ? clipRight - (Width - width) : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst, src, width - skip, tbl, mask, maskFlip);
+			RenderLine<Light>(dst, src, width - skip, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
@@ -632,49 +630,49 @@ DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical(uint8_t *DVL_REST
 		const auto width = Width - XStep * i;
 		const auto skip = Width - width < clipRight ? clipRight - (Width - width) : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst, src, width - skip, tbl, mask, maskFlip);
+			RenderLine<Light>(dst, src, width - skip, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTriangle(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTriangle(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == TriangleHeight) {
-			RenderRightTriangleFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+			RenderRightTriangleFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 		} else {
-			RenderRightTriangleClipVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+			RenderRightTriangleClipVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderRightTriangleClipLeftAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTriangleClipLeftAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else {
-		RenderRightTriangleClipRightAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTriangleClipRightAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	dst += XStep * (LowerHeight - 1);
 	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch + XStep) {
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	dst += XStep;
 	for (auto i = 1; i <= TrapezoidUpperHeight; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, Width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, Width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
@@ -683,22 +681,22 @@ DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch + XStep) {
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width;
 	dst += XStep;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, Width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, Width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	const auto clipLeft = clip.left;
@@ -711,22 +709,22 @@ DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTR
 		const auto startX = Width - XStep * i;
 		const auto skip = startX < clipLeft ? clipLeft - startX : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip);
+			RenderLine<Light>(dst + skip, src + skip, width - skip, tbl, MaskClipLeft(mask, skip), maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width + clipLeft;
 	dst += XStep + clipLeft;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, clip.width, tbl, MaskClipLeft(mask, clipLeft), maskFlip);
+		RenderLine<Light>(dst, src, clip.width, tbl, MaskClipLeft(mask, clipLeft), maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	const auto clipRight = clip.right;
@@ -737,75 +735,75 @@ DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical(uint8_t *DVL_REST
 		src += 2 * (i % 2);
 		const auto width = XStep * i;
 		if (width > clipRight)
-			RenderLine<Light, MaskShift>(dst, src, width - clipRight, tbl, mask, maskFlip);
+			RenderLine<Light>(dst, src, width - clipRight, tbl, mask, maskFlip, maskShift);
 		src += width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width;
 	dst += XStep;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, clip.width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, clip.width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
-			RenderLeftTrapezoidFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+			RenderLeftTrapezoidFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 		} else {
-			RenderLeftTrapezoidClipVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+			RenderLeftTrapezoidClipVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderLeftTrapezoidClipLeftAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTrapezoidClipLeftAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else {
-		RenderLeftTrapezoidClipRightAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTrapezoidClipRightAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTrapezoidFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidFull(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl)
 {
 	for (auto i = 1; i <= LowerHeight; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	for (auto i = 1; i <= TrapezoidUpperHeight; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, Width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, Width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
-		RenderLine<Light, MaskShift>(dst, src, width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, width, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, Width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, Width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	const auto clipLeft = clip.left;
@@ -814,21 +812,21 @@ DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVertical(uint8_t *DVL_REST
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch) {
 		const auto width = XStep * i;
 		if (width > clipLeft)
-			RenderLine<Light, MaskShift>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip);
+			RenderLine<Light>(dst, src + clipLeft, width - clipLeft, tbl, MaskClipLeft(mask, clipLeft), maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width + clipLeft;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, clip.width, tbl, MaskClipLeft(mask, clipLeft), maskFlip);
+		RenderLine<Light>(dst, src, clip.width, tbl, MaskClipLeft(mask, clipLeft), maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	const auto clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
 	const auto clipRight = clip.right;
@@ -838,71 +836,70 @@ DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertical(uint8_t *DVL_RES
 		const auto width = XStep * i;
 		const auto skip = Width - width < clipRight ? clipRight - (Width - width) : 0;
 		if (width > skip)
-			RenderLine<Light, MaskShift>(dst, src, width - skip, tbl, mask, maskFlip);
+			RenderLine<Light>(dst, src, width - skip, tbl, mask, maskFlip, maskShift);
 		src += width + 2 * (i % 2);
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 	src += clipY.upperBottom * Width;
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
-		RenderLine<Light, MaskShift>(dst, src, clip.width, tbl, mask, maskFlip);
+		RenderLine<Light>(dst, src, clip.width, tbl, mask, maskFlip, maskShift);
 		src += Width;
-		mask = MaskNextLine<MaskShift>(mask);
+		mask = MaskNextLine(maskShift, mask);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
-			RenderRightTrapezoidFull<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl);
+			RenderRightTrapezoidFull<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl);
 		} else {
-			RenderRightTrapezoidClipVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+			RenderRightTrapezoidClipVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderRightTrapezoidClipLeftAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTrapezoidClipLeftAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else {
-		RenderRightTrapezoidClipRightAndVertical<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTrapezoidClipRightAndVertical<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
-template <LightType Light, int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+template <LightType Light>
+DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, uint8_t mask, bool maskFlip, int8_t maskShift, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	switch (tile) {
 	case TileType::Square:
-		RenderSquare<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderSquare<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	case TileType::TransparentSquare:
-		RenderTransparentSquare<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderTransparentSquare<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	case TileType::LeftTriangle:
-		RenderLeftTriangle<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTriangle<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	case TileType::RightTriangle:
-		RenderRightTriangle<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTriangle<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	case TileType::LeftTrapezoid:
-		RenderLeftTrapezoid<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderLeftTrapezoid<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	case TileType::RightTrapezoid:
-		RenderRightTrapezoid<Light, MaskShift>(dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderRightTrapezoid<Light>(dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 		break;
 	}
 }
 
 
-template <int8_t MaskShift>
-DVL_ATTRIBUTE_HOT void RenderTileDispatch(uint8_t lightTableIndex, bool maskFlip, TileType tile, uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ATTRIBUTE_HOT void RenderTileDispatch(uint8_t lightTableIndex, bool maskFlip, int8_t maskShift, TileType tile, uint8_t *DVL_RESTRICT dst, int dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
-	const uint8_t mask = MaskNextLine<MaskShift>(64, clip.bottom);
+	const uint8_t mask = MaskNextLine(maskShift, 64, clip.bottom);
 	if (lightTableIndex == LightsMax) {
-		RenderTileType<LightType::FullyDark, MaskShift>(tile, dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderTileType<LightType::FullyDark>(tile, dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else if (lightTableIndex == 0) {
-		RenderTileType<LightType::FullyLit, MaskShift>(tile, dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderTileType<LightType::FullyLit>(tile, dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	} else {
-		RenderTileType<LightType::PartiallyLit, MaskShift>(tile, dst, dstPitch, src, mask, maskFlip, tbl, clip);
+		RenderTileType<LightType::PartiallyLit>(tile, dst, dstPitch, src, mask, maskFlip, maskShift, tbl, clip);
 	}
 }
 
@@ -1064,22 +1061,22 @@ void RenderTile(const Surface &out, Point position,
 		case MaskType::Invalid:
 			break;
 		case MaskType::Solid:
-			RenderTileDispatch</*MaskShift=*/0>(lightTableIndex, /*maskFlip=*/false, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex, /*maskFlip=*/false, /*maskShift=*/0, tile, dst, dstPitch, src, tbl, clip);
 			break;
 		case MaskType::Transparent:
-			RenderTileDispatch</*MaskShift=*/0>(lightTableIndex, /*maskFlip=*/true, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex, /*maskFlip=*/true, /*maskShift=*/0, tile, dst, dstPitch, src, tbl, clip);
 			break;
 		case MaskType::Left:
-			RenderTileDispatch</*MaskShift=*/2>(lightTableIndex, /*maskFlip=*/false, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex, /*maskFlip=*/false, /*maskShift=*/2, tile, dst, dstPitch, src, tbl, clip);
 			break;
 		case MaskType::Right:
-			RenderTileDispatch</*MaskShift=*/-2>(lightTableIndex,/*maskFlip=*/false, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex, /*maskFlip=*/false, /*maskShift=*/-2, tile, dst, dstPitch, src, tbl, clip);
 			break;
 		case MaskType::LeftFoliage:
-			RenderTileDispatch</*MaskShift=*/2>(lightTableIndex, /*maskFlip=*/true, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex, /*maskFlip=*/true, /*maskShift=*/2, tile, dst, dstPitch, src, tbl, clip);
 			break;
 		case MaskType::RightFoliage:
-			RenderTileDispatch</*MaskShift=*/-2>(lightTableIndex,/*maskFlip=*/true, tile, dst, dstPitch, src, tbl, clip);
+			RenderTileDispatch(lightTableIndex,/*maskFlip=*/true, /*maskShift=*/-2, tile, dst, dstPitch, src, tbl, clip);
 			break;
 	}
 
