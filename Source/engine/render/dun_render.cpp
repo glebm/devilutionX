@@ -279,13 +279,53 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareClipped(uint8_t *DVL_RESTRI
 	}
 }
 
-template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width && clip.height == Height) {
-		RenderSquareFull<Light, Transparent>(dst, dstPitch, src, tbl);
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderSquareFull<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl);
+	} else if (lightTableIndex == 0) {
+		RenderSquareFull<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl);
 	} else {
-		RenderSquareClipped<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderSquareFull<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderSquareFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderSquareFullDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Transparent:
+		RenderSquareFullDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareClippedDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderSquareClipped<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderSquareClipped<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderSquareClipped<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderSquareClippedDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderSquareClippedDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderSquareClippedDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
 	}
 }
 
@@ -392,13 +432,73 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t 
 	}
 }
 
-template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width && clip.height == Height) {
-		RenderTransparentSquareFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderTransparentSquareFull<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+	} else if (lightTableIndex == 0) {
+		RenderTransparentSquareFull<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else {
-		RenderTransparentSquareClipped<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderTransparentSquareFull<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Transparent:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Left:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Right:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::LeftFoliage:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::RightFoliage:
+		RenderTransparentSquareFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src);
+		break;
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClippedDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderTransparentSquareClipped<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderTransparentSquareClipped<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderTransparentSquareClipped<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareClippedDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Left:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Right:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::LeftFoliage:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::RightFoliage:
+		RenderTransparentSquareClippedDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
 	}
 }
 
@@ -565,19 +665,103 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(
 	}
 }
 
-template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width) {
-		if (clip.height == TriangleHeight) {
-			RenderLeftTriangleFull<Light, Transparent>(dst, dstPitch, src, tbl);
-		} else {
-			RenderLeftTriangleClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		}
-	} else if (clip.right == 0) {
-		RenderLeftTriangleClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTriangleFull<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTriangleFull<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl);
 	} else {
-		RenderLeftTriangleClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTriangleFull<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTriangleFullDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTriangleFullDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTriangleClipVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTriangleClipVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTriangleClipVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTriangleClipVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTriangleClipVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTriangleClipLeftAndVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTriangleClipLeftAndVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTriangleClipLeftAndVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTriangleClipLeftAndVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTriangleClipLeftAndVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTriangleClipRightAndVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTriangleClipRightAndVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTriangleClipRightAndVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTriangleClipRightAndVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTriangleClipRightAndVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
 	}
 }
 
@@ -688,19 +872,103 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical
 	}
 }
 
-template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width) {
-		if (clip.height == TriangleHeight) {
-			RenderRightTriangleFull<Light, Transparent>(dst, dstPitch, src, tbl);
-		} else {
-			RenderRightTriangleClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		}
-	} else if (clip.right == 0) {
-		RenderRightTriangleClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderRightTriangleFull<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl);
+	} else if (lightTableIndex == 0) {
+		RenderRightTriangleFull<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl);
 	} else {
-		RenderRightTriangleClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderRightTriangleFull<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTriangleFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTriangleFullDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Transparent:
+		RenderRightTriangleFullDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderRightTriangleClipVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderRightTriangleClipVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderRightTriangleClipVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTriangleClipVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderRightTriangleClipVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderRightTriangleClipLeftAndVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderRightTriangleClipLeftAndVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderRightTriangleClipLeftAndVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTriangleClipLeftAndVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderRightTriangleClipLeftAndVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool Transparent>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderRightTriangleClipRightAndVertical<LightType::FullyDark, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderRightTriangleClipRightAndVertical<LightType::FullyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderRightTriangleClipRightAndVertical<LightType::PartiallyLit, Transparent>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTriangleClipRightAndVerticalDispatchLight</*Transparent=*/false>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderRightTriangleClipRightAndVerticalDispatchLight</*Transparent=*/true>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
 	}
 }
 
@@ -786,19 +1054,115 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical
 	RenderTrapezoidUpperHalfClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
-template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width) {
-		if (clip.height == Height) {
-			RenderLeftTrapezoidFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
-		} else {
-			RenderLeftTrapezoidClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
-		}
-	} else if (clip.right == 0) {
-		RenderLeftTrapezoidClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTrapezoidFull<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTrapezoidFull<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else {
-		RenderLeftTrapezoidClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTrapezoidFull<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTrapezoidFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTrapezoidFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Left:
+		RenderLeftTrapezoidFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTrapezoidClipVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTrapezoidClipVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTrapezoidClipVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Left:
+		RenderLeftTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTrapezoidClipLeftAndVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTrapezoidClipLeftAndVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTrapezoidClipLeftAndVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Left:
+		RenderLeftTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderLeftTrapezoidClipRightAndVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderLeftTrapezoidClipRightAndVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderLeftTrapezoidClipRightAndVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderLeftTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderLeftTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Left:
+		RenderLeftTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
 	}
 }
 
@@ -836,122 +1200,139 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertica
 	RenderTrapezoidUpperHalfClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
-template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	if (clip.width == Width) {
-		if (clip.height == Height) {
-			RenderRightTrapezoidFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
-		} else {
-			RenderRightTrapezoidClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
-		}
-	} else if (clip.right == 0) {
-		RenderRightTrapezoidClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
-	} else {
-		RenderRightTrapezoidClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
-	}
-}
-
-template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	switch (tile) {
-	case TileType::Square:
-		RenderSquare<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	case TileType::TransparentSquare:
-		RenderTransparentSquare<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	case TileType::LeftTriangle:
-		RenderLeftTriangle<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	case TileType::RightTriangle:
-		RenderRightTriangle<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	case TileType::LeftTrapezoid:
-		RenderLeftTrapezoid<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	case TileType::RightTrapezoid:
-		RenderRightTrapezoid<Light, Transparent>(dst, dstPitch, src, tbl, clip);
-		break;
-	}
-}
-
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareDispatch(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidFullDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
 	if (lightTableIndex == LightsMax) {
-		RenderTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidFull<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else if (lightTableIndex == 0) {
-		RenderTransparentSquare<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidFull<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else {
-		RenderTransparentSquare<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidFull<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	}
 }
 
-template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	switch (tile) {
-	case TileType::TransparentSquare:
-		RenderTransparentSquare<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidFullDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTrapezoidFullDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
 		break;
-	case TileType::LeftTrapezoid:
-		RenderLeftTrapezoid<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	case MaskType::Transparent:
+		RenderRightTrapezoidFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src);
+		break;
+	case MaskType::Right:
+		RenderRightTrapezoidFullDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src);
 		break;
 	default:
-		app_fatal("Given mask can only be applied to TransparentSquare or LeftTrapezoid tiles");
+		app_fatal("Invalid mask type");
 	}
 }
 
-template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
-	switch (tile) {
-	case TileType::TransparentSquare:
-		RenderTransparentSquare<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
+	if (lightTableIndex == LightsMax) {
+		RenderRightTrapezoidClipVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderRightTrapezoidClipVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderRightTrapezoidClipVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case TileType::RightTrapezoid:
-		RenderRightTrapezoid<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	case MaskType::Transparent:
+		RenderRightTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Right:
+		RenderRightTrapezoidClipVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, clip);
 		break;
 	default:
-		app_fatal("Given mask can only be applied to TransparentSquare or LeftTrapezoid tiles");
+		app_fatal("Invalid mask type");
 	}
 }
 
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquareDispatch(uint8_t lightTableIndex, TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
 	if (lightTableIndex == LightsMax) {
-		RenderLeftTrapezoidOrTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipLeftAndVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else if (lightTableIndex == 0) {
-		RenderLeftTrapezoidOrTransparentSquare<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipLeftAndVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderLeftTrapezoidOrTransparentSquare<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipLeftAndVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	}
+}
+
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderRightTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Right:
+		RenderRightTrapezoidClipLeftAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
 	}
 }
 
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquareDispatch(uint8_t lightTableIndex, TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
-{
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVerticalDispatchLight(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	const uint8_t *tbl = &LightTables[static_cast<size_t>(256U * lightTableIndex)];
 	if (lightTableIndex == LightsMax) {
-		RenderRightTrapezoidOrTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipRightAndVertical<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else if (lightTableIndex == 0) {
-		RenderRightTrapezoidOrTransparentSquare<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipRightAndVertical<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderRightTrapezoidOrTransparentSquare<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidClipRightAndVertical<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
-template <bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(uint8_t lightTableIndex, TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVerticalDispatch(MaskType maskType, uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, Clip clip) {
+	switch (maskType) {
+	case MaskType::Solid:
+		RenderRightTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/false, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Transparent:
+		RenderRightTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/0>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case MaskType::Right:
+		RenderRightTrapezoidClipRightAndVerticalDispatchLight</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	default:
+		app_fatal("Invalid mask type");
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareFullDispatch(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl)
 {
 	if (lightTableIndex == LightsMax) {
-		RenderTileType<LightType::FullyDark, Transparent>(tile, dst, dstPitch, src, tbl, clip);
+		RenderTransparentSquareFull<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else if (lightTableIndex == 0) {
-		RenderTileType<LightType::FullyLit, Transparent>(tile, dst, dstPitch, src, tbl, clip);
+		RenderTransparentSquareFull<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else {
-		RenderTileType<LightType::PartiallyLit, Transparent>(tile, dst, dstPitch, src, tbl, clip);
+		RenderTransparentSquareFull<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
+	}
+}
+
+template <bool OpaquePrefix, int8_t PrefixIncrement>
+DVL_ATTRIBUTE_HOT void RenderTransparentSquareClippedDispatch(uint8_t lightTableIndex, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+{
+	if (lightTableIndex == LightsMax) {
+		RenderTransparentSquareClipped<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else if (lightTableIndex == 0) {
+		RenderTransparentSquareClipped<LightType::FullyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+	} else {
+		RenderTransparentSquareClipped<LightType::PartiallyLit, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
@@ -1081,7 +1462,7 @@ string_view MaskTypeToString(MaskType maskType)
 }
 #endif
 
-void RenderTile(const Surface &out, Point position,
+void RenderTileFull(const Surface &out, Point position,
     LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex)
 {
 	const TileType tile = levelCelBlock.type();
@@ -1096,11 +1477,69 @@ void RenderTile(const Surface &out, Point position,
 	DBGCOLOR = GetTileDebugColor(tile);
 #endif
 
-	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
-	if (clip.width <= 0 || clip.height <= 0)
+	assert(position.x >= 0);
+	assert(position.x + Width <= out.w());
+	assert(position.y + 1 >= GetTileHeight(tile));
+	assert(position.y < out.h());
+
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	uint8_t *dst = &out[position];
+	const uint16_t dstPitch = out.pitch();
+
+#ifdef DUN_RENDER_STATS
+	++DunRenderStats[DunRenderType { tile, maskType }];
+#endif
+
+	switch (tile) {
+	case TileType::Square:
+		RenderSquareFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	case TileType::TransparentSquare:
+		RenderTransparentSquareFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	case TileType::LeftTriangle:
+		RenderLeftTriangleFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	case TileType::RightTriangle:
+		RenderRightTriangleFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	case TileType::LeftTrapezoid:
+		RenderLeftTrapezoidFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	case TileType::RightTrapezoid:
+		RenderRightTrapezoidFullDispatch(maskType, lightTableIndex, dst, dstPitch, src);
+		break;
+	}
+
+#ifdef DEBUG_STR
+	const std::pair<string_view, UiFlags> debugStr = GetTileDebugStr(tile);
+	DrawString(out, debugStr.first, Rectangle { Point { position.x + 2, position.y - 29 }, Size { 28, 28 } }, debugStr.second);
+#endif
+}
+
+void RenderTileClipVertical(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex)
+{
+	const TileType tile = levelCelBlock.type();
+
+#ifdef DEBUG_RENDER_OFFSET_X
+	position.x += DEBUG_RENDER_OFFSET_X;
+#endif
+#ifdef DEBUG_RENDER_OFFSET_Y
+	position.y += DEBUG_RENDER_OFFSET_Y;
+#endif
+#ifdef DEBUG_RENDER_COLOR
+	DBGCOLOR = GetTileDebugColor(tile);
+#endif
+
+	const int_fast16_t height = GetTileHeight(tile);
+	const Clip clip = CalculateClip(position.x, position.y, Width, height, out);
+	if (clip.width == Width && clip.height == height)
+		return RenderTileFull(out, position, levelCelBlock, maskType, lightTableIndex);
+	if (clip.height <= 0)
 		return;
 
-	const uint8_t *tbl = &LightTables[256 * lightTableIndex];
 	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
 	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
 	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
@@ -1110,24 +1549,140 @@ void RenderTile(const Surface &out, Point position,
 	++DunRenderStats[DunRenderType { tile, maskType }];
 #endif
 
-	switch (maskType) {
-	case MaskType::Solid:
-		RenderTileDispatch</*Transparent=*/false>(lightTableIndex, tile, dst, dstPitch, src, tbl, clip);
+	switch (tile) {
+	case TileType::Square:
+		RenderSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case MaskType::Transparent:
-		RenderTileDispatch</*Transparent=*/true>(lightTableIndex, tile, dst, dstPitch, src, tbl, clip);
+	case TileType::TransparentSquare:
+		RenderTransparentSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case MaskType::Left:
-		RenderLeftTrapezoidOrTransparentSquareDispatch</*OpaquePrefix=*/false, /*PrefixIncrement=*/2>(lightTableIndex, tile, dst, dstPitch, src, tbl, clip);
+	case TileType::LeftTriangle:
+		RenderLeftTriangleClipVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case MaskType::Right:
-		RenderRightTrapezoidOrTransparentSquareDispatch</*OpaquePrefix=*/true, /*PrefixIncrement=*/-2>(lightTableIndex, tile, dst, dstPitch, src, tbl, clip);
+	case TileType::RightTriangle:
+		RenderRightTriangleClipVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case MaskType::LeftFoliage:
-		RenderTransparentSquareDispatch</*OpaquePrefix=*/true, /*PrefixIncrement=*/2>(lightTableIndex, dst, dstPitch, src, tbl, clip);
+	case TileType::LeftTrapezoid:
+		RenderLeftTrapezoidClipVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
-	case MaskType::RightFoliage:
-		RenderTransparentSquareDispatch</*OpaquePrefix=*/false, /*PrefixIncrement=*/-2>(lightTableIndex, dst, dstPitch, src, tbl, clip);
+	case TileType::RightTrapezoid:
+		RenderRightTrapezoidClipVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	}
+
+#ifdef DEBUG_STR
+	const std::pair<string_view, UiFlags> debugStr = GetTileDebugStr(tile);
+	DrawString(out, debugStr.first, Rectangle { Point { position.x + 2, position.y - 29 }, Size { 28, 28 } }, debugStr.second);
+#endif
+}
+
+void RenderTileClipLeftAndVertical(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex)
+{
+	const TileType tile = levelCelBlock.type();
+
+#ifdef DEBUG_RENDER_OFFSET_X
+	position.x += DEBUG_RENDER_OFFSET_X;
+#endif
+#ifdef DEBUG_RENDER_OFFSET_Y
+	position.y += DEBUG_RENDER_OFFSET_Y;
+#endif
+#ifdef DEBUG_RENDER_COLOR
+	DBGCOLOR = GetTileDebugColor(tile);
+#endif
+
+	const int_fast16_t height = GetTileHeight(tile);
+	const Clip clip = CalculateClip(position.x, position.y, Width, height, out);
+	if (clip.width == Width && clip.height == height)
+		return RenderTileFull(out, position, levelCelBlock, maskType, lightTableIndex);
+	if (clip.width <= 0 || clip.height <= 0)
+		return;
+
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+
+#ifdef DUN_RENDER_STATS
+	++DunRenderStats[DunRenderType { tile, maskType }];
+#endif
+
+	switch (tile) {
+	case TileType::Square:
+		RenderSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::TransparentSquare:
+		RenderTransparentSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::LeftTriangle:
+		RenderLeftTriangleClipLeftAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::RightTriangle:
+		RenderRightTriangleClipLeftAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::LeftTrapezoid:
+		RenderLeftTrapezoidClipLeftAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::RightTrapezoid:
+		RenderRightTrapezoidClipLeftAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	}
+
+#ifdef DEBUG_STR
+	const std::pair<string_view, UiFlags> debugStr = GetTileDebugStr(tile);
+	DrawString(out, debugStr.first, Rectangle { Point { position.x + 2, position.y - 29 }, Size { 28, 28 } }, debugStr.second);
+#endif
+}
+
+void RenderTileClipRightAndVertical(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex)
+{
+	const TileType tile = levelCelBlock.type();
+
+#ifdef DEBUG_RENDER_OFFSET_X
+	position.x += DEBUG_RENDER_OFFSET_X;
+#endif
+#ifdef DEBUG_RENDER_OFFSET_Y
+	position.y += DEBUG_RENDER_OFFSET_Y;
+#endif
+#ifdef DEBUG_RENDER_COLOR
+	DBGCOLOR = GetTileDebugColor(tile);
+#endif
+
+	const int_fast16_t height = GetTileHeight(tile);
+	const Clip clip = CalculateClip(position.x, position.y, Width, height, out);
+	if (clip.width == Width && clip.height == height)
+		return RenderTileFull(out, position, levelCelBlock, maskType, lightTableIndex);
+	if (clip.width <= 0 || clip.height <= 0)
+		return;
+
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+
+#ifdef DUN_RENDER_STATS
+	++DunRenderStats[DunRenderType { tile, maskType }];
+#endif
+
+	switch (tile) {
+	case TileType::Square:
+		RenderSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::TransparentSquare:
+		RenderTransparentSquareClippedDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::LeftTriangle:
+		RenderLeftTriangleClipRightAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::RightTriangle:
+		RenderRightTriangleClipRightAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::LeftTrapezoid:
+		RenderLeftTrapezoidClipRightAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
+		break;
+	case TileType::RightTrapezoid:
+		RenderRightTrapezoidClipRightAndVerticalDispatch(maskType, lightTableIndex, dst, dstPitch, src, clip);
 		break;
 	}
 

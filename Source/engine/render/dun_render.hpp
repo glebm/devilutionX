@@ -97,7 +97,7 @@ enum class MaskType : uint8_t {
 	/**
 	 * @brief Upper-right triangle is blended with transparency.
 	 *
-	 * Can only be used with `TileType::LeftTrapezoid` and
+	 * Can only be used with `TileType::RightTrapezoid` and
 	 * `TileType::TransparentSquare`.
 	 *
 	 * The lower 16 rows are opaque.
@@ -125,7 +125,7 @@ enum class MaskType : uint8_t {
 	/**
 	 * @brief Upper-left triangle is blended with transparency.
 	 *
-	 * Can only be used with `TileType::RightTrapezoid` and
+	 * Can only be used with `TileType::LeftTrapezoid` and
 	 * `TileType::TransparentSquare`.
 	 *
 	 * The lower 16 rows are opaque.
@@ -256,15 +256,44 @@ string_view TileTypeToString(TileType tileType);
 string_view MaskTypeToString(MaskType maskType);
 #endif
 
+using RenderTileFn = void (*)(const Surface &, Point, LevelCelBlock, MaskType, uint8_t);
+
 /**
- * @brief Blit current world CEL to the given buffer
+ * @brief Blit the tile to the current given buffer.
+ *
+ * The tile must not go beyond the bounds of the buffer.
+ *
  * @param out Target buffer
  * @param position Target buffer coordinates
  * @param levelCelBlock The MIN block of the level CEL file.
  * @param maskType The mask to use,
  * @param lightTableIndex The light level to use for rendering (index into LightTables / 256).
  */
-void RenderTile(const Surface &out, Point position,
+void RenderTileFull(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex);
+
+/**
+ * @brief Same as `RenderTileFull` but clips to the buffer bounds vertically.
+ *
+ * @see {RenderTileFull}
+ */
+void RenderTileClipVertical(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex);
+
+/**
+ * @brief Same as `RenderTileFull` but clips to the buffer bounds vertically and on the left.
+ *
+ * @see {RenderTileFull}
+ */
+void RenderTileClipLeftAndVertical(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex);
+
+/**
+ * @brief Same as `RenderTileFull` but clips to the buffer bounds vertically and on the right.
+ *
+ * @see {RenderTileFull}
+ */
+void RenderTileClipRightAndVertical(const Surface &out, Point position,
     LevelCelBlock levelCelBlock, MaskType maskType, uint8_t lightTableIndex);
 
 /**

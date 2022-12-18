@@ -492,16 +492,16 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 	}
 }
 
-static void DrawDungeon(const Surface & /*out*/, Point /*tilePosition*/, Point /*targetBufferPosition*/);
-
 /**
  * @brief Render a cell
  * @param out Target buffer
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinates
  */
+template <RenderTileFn RenderTile>
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
+	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
 	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
@@ -553,26 +553,28 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 	// The first micro tile may be rendered with a foliage mask.
 	// Only `TransparentSquare` tiles are rendered when `foliage` is true.
 	{
-		{
-			const LevelCelBlock levelCelBlock { pMap->mt[0] };
-			const TileType tileType = levelCelBlock.type();
-			const MaskType maskType = getFirstTileMaskLeft(tileType);
-			if (levelCelBlock.hasValue()) {
-				if (maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) {
-					RenderTile(out, targetBufferPosition,
-					    levelCelBlock, maskType, LightTableIndex);
+		if (targetBufferPosition.y - TILE_HEIGHT + 1 < out.h()) {
+			{
+				const LevelCelBlock levelCelBlock { pMap->mt[0] };
+				const TileType tileType = levelCelBlock.type();
+				const MaskType maskType = getFirstTileMaskLeft(tileType);
+				if (levelCelBlock.hasValue()) {
+					if (maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) {
+						RenderTile(out, targetBufferPosition,
+						    levelCelBlock, maskType, LightTableIndex);
+					}
 				}
 			}
-		}
-		{
-			const LevelCelBlock levelCelBlock { pMap->mt[1] };
-			const TileType tileType = levelCelBlock.type();
-			const MaskType maskType = getFirstTileMaskRight(tileType);
-			if (levelCelBlock.hasValue()) {
-				if (transparency || !foliage || levelCelBlock.type() == TileType::TransparentSquare) {
-					if (maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) {
-						RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-						    levelCelBlock, maskType, LightTableIndex);
+			{
+				const LevelCelBlock levelCelBlock { pMap->mt[1] };
+				const TileType tileType = levelCelBlock.type();
+				const MaskType maskType = getFirstTileMaskRight(tileType);
+				if (levelCelBlock.hasValue()) {
+					if (transparency || !foliage || levelCelBlock.type() == TileType::TransparentSquare) {
+						if (maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) {
+							RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
+							    levelCelBlock, maskType, LightTableIndex);
+						}
 					}
 				}
 			}
@@ -580,9 +582,9 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 		targetBufferPosition.y -= TILE_HEIGHT;
 	}
 
-	for (uint_fast8_t i = 2, n = MicroTileLen; i < n; i += 2) {
+	const auto render = [&](uint_fast8_t index) {
 		{
-			const LevelCelBlock levelCelBlock { pMap->mt[i] };
+			const LevelCelBlock levelCelBlock { pMap->mt[index] };
 			if (levelCelBlock.hasValue()) {
 				RenderTile(out, targetBufferPosition,
 				    levelCelBlock,
@@ -590,14 +592,55 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			}
 		}
 		{
-			const LevelCelBlock levelCelBlock { pMap->mt[i + 1] };
+			const LevelCelBlock levelCelBlock { pMap->mt[index + 1] };
 			if (levelCelBlock.hasValue()) {
 				RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
 				    levelCelBlock,
 				    transparency ? MaskType::Transparent : MaskType::Solid, LightTableIndex);
 			}
 		}
+	};
+
+	const uint_fast8_t n = MicroTileLen;
+	uint_fast8_t i = 2;
+	for (; targetBufferPosition.y - TILE_HEIGHT + 1 >= out.h() && i < n; i += 2) {
 		targetBufferPosition.y -= TILE_HEIGHT;
+	}
+
+	for (; i < n && targetBufferPosition.y >= TILE_HEIGHT - 1; i += 2) {
+		render(i);
+		targetBufferPosition.y -= TILE_HEIGHT;
+	}
+
+	if (i < n) {
+		{
+			const LevelCelBlock levelCelBlock { pMap->mt[i] };
+			if (levelCelBlock.hasValue()) {
+				if (RenderTile == RenderTileFull) {
+					RenderTileClipVertical(out, targetBufferPosition,
+					    levelCelBlock,
+					    transparency ? MaskType::Transparent : MaskType::Solid, LightTableIndex);
+				} else {
+					RenderTile(out, targetBufferPosition,
+					    levelCelBlock,
+					    transparency ? MaskType::Transparent : MaskType::Solid, LightTableIndex);
+				}
+			}
+		}
+		{
+			const LevelCelBlock levelCelBlock { pMap->mt[i + 1] };
+			if (levelCelBlock.hasValue()) {
+				if (RenderTile == RenderTileFull) {
+					RenderTileClipVertical(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
+					    levelCelBlock,
+					    transparency ? MaskType::Transparent : MaskType::Solid, LightTableIndex);
+				} else {
+					RenderTile(out, targetBufferPosition,
+					    levelCelBlock,
+					    transparency ? MaskType::Transparent : MaskType::Solid, LightTableIndex);
+				}
+			}
+		}
 	}
 }
 
@@ -607,6 +650,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinate
  */
+template <RenderTileFn RenderTile>
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
@@ -738,24 +782,8 @@ void DrawPlayerHelper(const Surface &out, const Player &player, Point tilePositi
 	DrawPlayer(out, player, tilePosition, playerRenderPosition);
 }
 
-/**
- * @brief Render object sprites
- * @param out Target buffer
- * @param tilePosition dPiece coordinates
- * @param targetBufferPosition Target buffer coordinates
- */
-void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosition)
+void DrawCellContents(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
-	assert(InDungeonBounds(tilePosition));
-
-	if (dRendered.test(tilePosition.x, tilePosition.y))
-		return;
-	dRendered.set(tilePosition.x, tilePosition.y);
-
-	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
-
-	DrawCell(out, tilePosition, targetBufferPosition);
-
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
 	int8_t bMap = dTransVal[tilePosition.x][tilePosition.y];
 
@@ -827,29 +855,107 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 }
 
 /**
- * @brief Render a row of tiles
- * @param out Buffer to render to
+ * @brief Render object sprites
+ * @param out Target buffer
+ * @param tilePosition dPiece coordinates
+ * @param targetBufferPosition Target buffer coordinates
+ */
+template <RenderTileFn RenderTile>
+void DrawDungeonCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
+{
+	if (dRendered.test(tilePosition.x, tilePosition.y))
+		return;
+	dRendered.set(tilePosition.x, tilePosition.y);
+	DrawCell<RenderTile>(out, tilePosition, targetBufferPosition);
+	DrawCellContents(out, tilePosition, targetBufferPosition);
+}
+
+template <RenderTileFn RenderTile>
+void DrawFloorTile(const Surface &out, Point &tilePosition, Point &targetBufferPosition)
+{
+	if (InDungeonBounds(tilePosition)) {
+		if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
+			DrawFloor<RenderTile>(out, tilePosition, targetBufferPosition);
+	} else {
+		world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
+	}
+}
+
+using DrawTileFn = void (*)(const Surface &, Point &, Point &);
+
+/**
+ * @brief Render a grid of tiles using the given draw functinos.
+ *
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinates
  * @param rows Number of rows
  * @param columns Tile in a row
  */
-void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+template <
+    DrawTileFn DrawFull, DrawTileFn DrawClipVertical, DrawTileFn DrawClipLeftAndVertical, DrawTileFn DrawClipRightAndVertical>
+void DrawTiles(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns, uint_fast8_t bottomExtraRows = 0)
 {
-	for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition)) {
-				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
-					DrawFloor(out, tilePosition, targetBufferPosition);
-			} else {
-				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
-			}
+	const auto drawClippedRow = [&]() {
+		DrawClipLeftAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		DrawClipLeftAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		for (int j = 2; j < columns - 2; j++) {
+			DrawClipVertical(out, tilePosition, targetBufferPosition);
 			tilePosition += Direction::East;
 			targetBufferPosition.x += TILE_WIDTH;
 		}
+		DrawClipRightAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		DrawClipRightAndVertical(out, tilePosition, targetBufferPosition);
+	};
+
+	// First row (top):
+	drawClippedRow();
+	// Return to start of row
+	tilePosition += Displacement(Direction::West) * (columns - 1);
+	targetBufferPosition.x -= (columns - 1) * TILE_WIDTH;
+
+	// Jump to next row
+	targetBufferPosition.y += TILE_HEIGHT / 2;
+	tilePosition.y++;
+	columns++;
+	targetBufferPosition.x -= TILE_WIDTH / 2;
+
+	// Second row (top + 1):
+	drawClippedRow();
+	// Return to start of row
+	tilePosition += Displacement(Direction::West) * (columns - 1);
+	targetBufferPosition.x -= (columns - 1) * TILE_WIDTH;
+
+	// Jump to next row
+	targetBufferPosition.y += TILE_HEIGHT / 2;
+	tilePosition.x++;
+	columns--;
+	targetBufferPosition.x += TILE_WIDTH / 2;
+
+	for (int i = 2; i < rows - 2; i++) {
+		DrawClipLeftAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		DrawClipLeftAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		for (int j = 2; j < columns - 2; j++) {
+			DrawFull(out, tilePosition, targetBufferPosition);
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		DrawClipRightAndVertical(out, tilePosition, targetBufferPosition);
+		tilePosition += Direction::East;
+		targetBufferPosition.x += TILE_WIDTH;
+		DrawClipRightAndVertical(out, tilePosition, targetBufferPosition);
 		// Return to start of row
-		tilePosition += Displacement(Direction::West) * columns;
-		targetBufferPosition.x -= columns * TILE_WIDTH;
+		tilePosition += Displacement(Direction::West) * (columns - 1);
+		targetBufferPosition.x -= (columns - 1) * TILE_WIDTH;
 
 		// Jump to next row
 		targetBufferPosition.y += TILE_HEIGHT / 2;
@@ -863,11 +969,81 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			targetBufferPosition.x -= TILE_WIDTH / 2;
 		}
 	}
+
+	// bottomExtraRows are non-zero only when drawing MicroTiles, which are
+	// drawn as 10, 12, or 16 tiles bottom to top for each Draw call.
+	//
+	// We add +1 to draw second-to-last-row as well.
+	for (uint_fast8_t i = rows - 2; i < rows - 2 + bottomExtraRows + 1; i++) {
+		drawClippedRow();
+		// Return to start of row
+		tilePosition += Displacement(Direction::West) * (columns - 1);
+		targetBufferPosition.x -= (columns - 1) * TILE_WIDTH;
+
+		// Jump to next row
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+
+	// Last row (bottom):
+	drawClippedRow();
+}
+
+/**
+ * @brief Render a row of tiles
+ * @param out Buffer to render to
+ * @param tilePosition dPiece coordinates
+ * @param targetBufferPosition Target buffer coordinates
+ * @param rows Number of rows
+ * @param columns Tile in a row
+ */
+void DrawFloorTiles(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	DrawTiles<
+	    DrawFloorTile<RenderTileFull>,
+	    DrawFloorTile<RenderTileClipVertical>,
+	    DrawFloorTile<RenderTileClipLeftAndVertical>,
+	    DrawFloorTile<RenderTileClipRightAndVertical>>(
+	    out, tilePosition, targetBufferPosition, rows, columns);
 }
 
 bool IsWall(Point position)
 {
 	return TileHasAny(dPiece[position.x][position.y], TileProperties::Solid) || dSpecial[position.x][position.y] != 0;
+}
+
+template <RenderTileFn RenderTile>
+void DrawContentTile(const Surface &out, Point &tilePosition, Point &targetBufferPosition)
+{
+	if (InDungeonBounds(tilePosition)) {
+#ifdef _DEBUG
+		DebugCoordsMap[tilePosition.x + tilePosition.y * MAXDUNX] = targetBufferPosition;
+#endif
+		if (tilePosition.x + 1 < MAXDUNX && tilePosition.y - 1 >= 0 && targetBufferPosition.x + TILE_WIDTH <= gnScreenWidth) {
+			// Render objects behind walls first to prevent sprites, that are moving
+			// between tiles, from poking through the walls as they exceed the tile bounds.
+			// A proper fix for this would probably be to layout the sceen and render by
+			// sprite screen position rather than tile position.
+			if (IsWall(tilePosition) && (IsWall(tilePosition + Displacement { 1, 0 }) || (tilePosition.x > 0 && IsWall(tilePosition + Displacement { -1, 0 })))) { // Part of a wall aligned on the x-axis
+				if (IsTileNotSolid(tilePosition + Displacement { 1, -1 }) && IsTileNotSolid(tilePosition + Displacement { 0, -1 })) {                              // Has walkable area behind it
+					if (targetBufferPosition.x + TILE_WIDTH + TILE_WIDTH <= gnScreenWidth) {
+						DrawDungeonCell<RenderTileClipRightAndVertical>(out, tilePosition + Direction::East, { targetBufferPosition.x + TILE_WIDTH, targetBufferPosition.y });
+					} else {
+						DrawDungeonCell<RenderTile>(out, tilePosition + Direction::East, { targetBufferPosition.x + TILE_WIDTH, targetBufferPosition.y });
+					}
+				}
+			}
+		}
+		DrawDungeonCell<RenderTile>(out, tilePosition, targetBufferPosition);
+	}
 }
 
 /**
@@ -878,50 +1054,17 @@ bool IsWall(Point position)
  * @param rows Number of rows
  * @param columns Tile in a row
  */
-void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+void DrawContentTiles(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
-	// Keep evaluating until MicroTiles can't affect screen
-	rows += MicroTileLen;
 	dRendered.reset();
 
-	for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition)) {
-#ifdef _DEBUG
-				DebugCoordsMap[tilePosition.x + tilePosition.y * MAXDUNX] = targetBufferPosition;
-#endif
-				if (tilePosition.x + 1 < MAXDUNX && tilePosition.y - 1 >= 0 && targetBufferPosition.x + TILE_WIDTH <= gnScreenWidth) {
-					// Render objects behind walls first to prevent sprites, that are moving
-					// between tiles, from poking through the walls as they exceed the tile bounds.
-					// A proper fix for this would probably be to layout the sceen and render by
-					// sprite screen position rather than tile position.
-					if (IsWall(tilePosition) && (IsWall(tilePosition + Displacement { 1, 0 }) || (tilePosition.x > 0 && IsWall(tilePosition + Displacement { -1, 0 })))) { // Part of a wall aligned on the x-axis
-						if (IsTileNotSolid(tilePosition + Displacement { 1, -1 }) && IsTileNotSolid(tilePosition + Displacement { 0, -1 })) {                              // Has walkable area behind it
-							DrawDungeon(out, tilePosition + Direction::East, { targetBufferPosition.x + TILE_WIDTH, targetBufferPosition.y });
-						}
-					}
-				}
-				DrawDungeon(out, tilePosition, targetBufferPosition);
-			}
-			tilePosition += Direction::East;
-			targetBufferPosition.x += TILE_WIDTH;
-		}
-		// Return to start of row
-		tilePosition += Displacement(Direction::West) * columns;
-		targetBufferPosition.x -= columns * TILE_WIDTH;
-
-		// Jump to next row
-		targetBufferPosition.y += TILE_HEIGHT / 2;
-		if ((i & 1) != 0) {
-			tilePosition.x++;
-			columns--;
-			targetBufferPosition.x += TILE_WIDTH / 2;
-		} else {
-			tilePosition.y++;
-			columns++;
-			targetBufferPosition.x -= TILE_WIDTH / 2;
-		}
-	}
+	DrawTiles<
+	    DrawContentTile<RenderTileFull>,
+	    DrawContentTile<RenderTileClipVertical>,
+	    DrawContentTile<RenderTileClipLeftAndVertical>,
+	    DrawContentTile<RenderTileClipRightAndVertical>>(
+	    out, tilePosition, targetBufferPosition, rows, columns,
+	    /*bottomExtraRows=*/MicroTileLen);
 }
 
 /**
@@ -998,7 +1141,7 @@ void DrawGame(const Surface &fullOut, Point position)
 
 	// Adjust by player offset and tile grid alignment
 	Player &myPlayer = *MyPlayer;
-	Displacement offset = {};
+	Displacement offset { 0, 0 };
 	if (myPlayer.IsWalking())
 		offset = GetOffsetForWalking(myPlayer.AnimInfo, myPlayer._pdir, true);
 	int sx = offset.deltaX + tileOffset.deltaX;
@@ -1039,7 +1182,7 @@ void DrawGame(const Surface &fullOut, Point position)
 	UpdateMissilesRendererData();
 
 	// Draw areas moving in and out of the screen
-	if (myPlayer.IsWalking()) {
+	if (offset.deltaX != 0 || offset.deltaY != 0) {
 		switch (myPlayer._pdir) {
 		case Direction::NoDirection:
 			break;
@@ -1089,8 +1232,8 @@ void DrawGame(const Surface &fullOut, Point position)
 	DunRenderStats.clear();
 #endif
 
-	DrawFloor(out, position, { sx, sy }, rows, columns);
-	DrawTileContent(out, position, { sx, sy }, rows, columns);
+	DrawFloorTiles(out, position, { sx, sy }, rows, columns);
+	DrawContentTiles(out, position, { sx, sy }, rows, columns);
 
 	if (*sgOptions.Graphics.zoom) {
 		Zoom(fullOut.subregionY(0, gnViewportHeight));
