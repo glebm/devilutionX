@@ -2289,10 +2289,12 @@ void PrintSString(const Surface &out, int margin, int line, string_view text, Ui
 
 	if (*sgOptions.Graphics.showItemGraphicsInStores && cursId >= 0) {
 		const ClxSprite halfSprite = GetHalfSizeItemSprite(cursId);
-		ClxDraw(out,
-		    { rect.position.x + (halfCursWidth - halfSprite.width()) / 2,
-		        rect.position.y + (TextHeight() * 3 + halfSprite.height()) / 2 },
-		    halfSprite);
+		const Point position {
+			rect.position.x + (halfCursWidth - halfSprite.width()) / 2,
+			rect.position.y + (TextHeight() * 3 + halfSprite.height()) / 2
+		};
+		ClxDrawOutline(out, 0, position, halfSprite);
+		ClxDraw(out, position, halfSprite);
 	}
 
 	if (*sgOptions.Graphics.showItemGraphicsInStores && cursIndent) {
