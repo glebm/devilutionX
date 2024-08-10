@@ -7,11 +7,10 @@
 
 #include <cstdint>
 
-#include <SDL_endian.h>
-
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 #include "levels/dun_tile.hpp"
+#include "lighting.h"
 
 // #define DUN_RENDER_STATS
 #ifdef DUN_RENDER_STATS
@@ -175,11 +174,42 @@ void RenderTile(const Surface &out, Point position,
     LevelCelBlock levelCelBlock, MaskType maskType, const uint8_t *tbl);
 
 /**
- * @brief Render a black 64x31 tile ◆
+ * @brief Render a single color 64x31 tile ◆
  * @param out Target buffer
  * @param sx Target buffer coordinate (left corner of the tile)
  * @param sy Target buffer coordinate (bottom corner of the tile)
+ * @param color Color index
  */
-void world_draw_black_tile(const Surface &out, int sx, int sy);
+void RenderSingleColorTile(const Surface &out, int sx, int sy, uint8_t color = 0);
+
+inline bool IsFullyDark(const uint8_t *DVL_RESTRICT tbl)
+{
+	return tbl == FullyDarkLightTable;
+}
+
+inline bool IsFullyLit(const uint8_t *DVL_RESTRICT tbl)
+{
+	return tbl == FullyLitLightTable;
+}
+
+/**
+ * @brief Renders a tile without masking.
+ */
+void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
+
+/**
+ * @brief Renders a tile with transparency blending.
+ */
+void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
+
+/**
+ * @brief Renders a tile without masking and without lighting.
+ */
+void RenderFullyLitOpaqueTile(TileType tile, const Surface &out, Point position, const uint8_t *DVL_RESTRICT src);
+
+/**
+ * @brief Writes a tile with the color swaps from `tbl` to `dst`.
+ */
+void DunTileApplyTrans(LevelCelBlock levelCelBlock, uint8_t *DVL_RESTRICT dst, const uint8_t *tbl);
 
 } // namespace devilution

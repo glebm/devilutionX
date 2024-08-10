@@ -10,12 +10,6 @@
 
 namespace devilution {
 
-#if __cpp_lib_execution >= 201902L
-#define DEVILUTIONX_BLIT_EXECUTION_POLICY std::execution::unseq,
-#else
-#define DEVILUTIONX_BLIT_EXECUTION_POLICY
-#endif
-
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillDirect(uint8_t *dst, unsigned length, uint8_t color)
 {
 	DVL_ASSUME(length != 0);
@@ -48,7 +42,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillWithMap(uint8_t *dst, unsigned 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithMap(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
 {
 	DVL_ASSUME(length != 0);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, [colorMap](uint8_t srcColor) { return colorMap[srcColor]; });
+	std::transform(DVL_EXECUTION_UNSEQ src, src + length, dst, [colorMap](uint8_t srcColor) { return colorMap[srcColor]; });
 }
 
 struct BlitWithMap {
@@ -67,7 +61,7 @@ struct BlitWithMap {
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned length, uint8_t color)
 {
 	DVL_ASSUME(length != 0);
-	std::for_each(DEVILUTIONX_BLIT_EXECUTION_POLICY dst, dst + length, [tbl = paletteTransparencyLookup[color]](uint8_t &dstColor) {
+	std::for_each(DVL_EXECUTION_UNSEQ dst, dst + length, [tbl = paletteTransparencyLookup[color]](uint8_t &dstColor) {
 		dstColor = tbl[dstColor];
 	});
 }
@@ -75,7 +69,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlended(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
 {
 	DVL_ASSUME(length != 0);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, dst, [pal = paletteTransparencyLookup](uint8_t srcColor, uint8_t dstColor) {
+	std::transform(DVL_EXECUTION_UNSEQ src, src + length, dst, dst, [pal = paletteTransparencyLookup](uint8_t srcColor, uint8_t dstColor) {
 		return pal[srcColor][dstColor];
 	});
 }
@@ -94,7 +88,7 @@ struct BlitBlended {
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithMap(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
 {
 	DVL_ASSUME(length != 0);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, dst, [colorMap, pal = paletteTransparencyLookup](uint8_t srcColor, uint8_t dstColor) {
+	std::transform(DVL_EXECUTION_UNSEQ src, src + length, dst, dst, [colorMap, pal = paletteTransparencyLookup](uint8_t srcColor, uint8_t dstColor) {
 		return pal[dstColor][colorMap[srcColor]];
 	});
 }

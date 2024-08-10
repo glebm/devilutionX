@@ -5,6 +5,10 @@
  */
 #pragma once
 
+#ifdef __cplusplus
+#include <execution>
+#endif
+
 #ifdef __has_attribute
 #define DVL_HAVE_ATTRIBUTE(x) __has_attribute(x)
 #else
@@ -30,6 +34,14 @@
 #define DVL_ALWAYS_INLINE __forceinline
 #else
 #define DVL_ALWAYS_INLINE inline
+#endif
+
+#if DVL_HAVE_ATTRIBUTE(noinline)
+#define DVL_NO_INLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define DVL_NO_INLINE __declspec(noinline)
+#else
+#define DVL_NO_INLINE
 #endif
 
 #if DVL_HAVE_ATTRIBUTE(hot)
@@ -101,4 +113,12 @@
 #define DVL_UNREACHABLE() __assume(false)
 #else
 #define DVL_UNREACHABLE()
+#endif
+
+#ifdef __cplusplus
+#if __cpp_lib_execution >= 201902L
+#define DVL_EXECUTION_UNSEQ std::execution::unseq,
+#else
+#define DVL_EXECUTION_UNSEQ
+#endif
 #endif

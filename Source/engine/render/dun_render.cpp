@@ -14,14 +14,12 @@
 
 #include <SDL_endian.h>
 
-#include <algorithm>
 #include <climits>
 #include <cstdint>
+#include <cstring>
 
 #include "engine/render/blit_impl.hpp"
 #include "levels/dun_tile.hpp"
-#include "lighting.h"
-#include "options.h"
 #include "utils/attributes.h"
 #ifdef DEBUG_STR
 #include "engine/render/text_render.hpp"
@@ -282,16 +280,6 @@ DVL_ALWAYS_INLINE Clip CalculateClip(int_fast16_t x, int_fast16_t y, int_fast16_
 	return clip;
 }
 
-DVL_ALWAYS_INLINE bool IsFullyDark(const uint8_t *DVL_RESTRICT tbl)
-{
-	return tbl == FullyDarkLightTable;
-}
-
-DVL_ALWAYS_INLINE bool IsFullyLit(const uint8_t *DVL_RESTRICT tbl)
-{
-	return tbl == FullyLitLightTable;
-}
-
 template <LightType Light, bool Transparent>
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareFull(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl)
 {
@@ -425,7 +413,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t 
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width && clip.height == Height) {
 		RenderTransparentSquareFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
@@ -443,7 +431,7 @@ struct DiamondClipY {
 };
 
 template <int_fast16_t UpperHeight = TriangleUpperHeight>
-DVL_ALWAYS_INLINE DiamondClipY CalculateDiamondClipY(const Clip &clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT DiamondClipY CalculateDiamondClipY(const Clip &clip)
 {
 	DiamondClipY result;
 	if (clip.bottom > LowerHeight) {
@@ -462,12 +450,12 @@ DVL_ALWAYS_INLINE DiamondClipY CalculateDiamondClipY(const Clip &clip)
 	return result;
 }
 
-DVL_ALWAYS_INLINE std::size_t CalculateTriangleSourceSkipLowerBottom(int_fast16_t numLines)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT std::size_t CalculateTriangleSourceSkipLowerBottom(int_fast16_t numLines)
 {
 	return XStep * numLines * (numLines + 1) / 2 + 2 * ((numLines + 1) / 2);
 }
 
-DVL_ALWAYS_INLINE std::size_t CalculateTriangleSourceSkipUpperBottom(int_fast16_t numLines)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT std::size_t CalculateTriangleSourceSkipUpperBottom(int_fast16_t numLines)
 {
 	return 2 * TriangleUpperHeight * numLines - numLines * (numLines - 1) + 2 * ((numLines + 1) / 2);
 }
@@ -598,7 +586,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == TriangleHeight) {
@@ -840,7 +828,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
@@ -890,7 +878,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertica
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
@@ -906,7 +894,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTR
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	switch (tile) {
 	case TileType::Square:
@@ -997,7 +985,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare
 }
 
 template <bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
 {
 	if (IsFullyDark(tbl)) {
 		RenderTileType<LightType::FullyDark, Transparent>(tile, dst, dstPitch, src, tbl, clip);
@@ -1009,7 +997,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8
 }
 
 // Blit with left and vertical clipping.
-void RenderBlackTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int sx, DiamondClipY clipY)
+void RenderSingleColorTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int sx, DiamondClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
@@ -1018,9 +1006,9 @@ void RenderBlackTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstP
 		const auto w = 2 * XStep * i;
 		const auto curX = sx + TILE_WIDTH / 2 - XStep * i;
 		if (curX >= 0) {
-			memset(dst, 0, w);
+			memset(dst, color, w);
 		} else if (-curX <= w) {
-			memset(dst - curX, 0, w + curX);
+			memset(dst - curX, color, w + curX);
 		}
 	}
 	dst += 2 * XStep + XStep * clipY.upperBottom;
@@ -1030,9 +1018,9 @@ void RenderBlackTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstP
 		const auto w = 2 * XStep * (TriangleUpperHeight - i);
 		const auto curX = sx + TILE_WIDTH / 2 - XStep * (TriangleUpperHeight - i);
 		if (curX >= 0) {
-			memset(dst, 0, w);
+			memset(dst, color, w);
 		} else if (-curX <= w) {
-			memset(dst - curX, 0, w + curX);
+			memset(dst - curX, color, w + curX);
 		} else {
 			break;
 		}
@@ -1040,7 +1028,7 @@ void RenderBlackTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstP
 }
 
 // Blit with right and vertical clipping.
-void RenderBlackTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int_fast16_t maxWidth, DiamondClipY clipY)
+void RenderSingleColorTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int_fast16_t maxWidth, DiamondClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
@@ -1050,7 +1038,7 @@ void RenderBlackTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dst
 		const auto endX = TILE_WIDTH / 2 + XStep * i;
 		const auto skip = endX > maxWidth ? endX - maxWidth : 0;
 		if (width > skip)
-			memset(dst, 0, width - skip);
+			memset(dst, color, width - skip);
 	}
 	dst += 2 * XStep + XStep * clipY.upperBottom;
 	// Upper triangle (drawn bottom to top):
@@ -1066,36 +1054,41 @@ void RenderBlackTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dst
 }
 
 // Blit with vertical clipping only.
-void RenderBlackTileClipY(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, DiamondClipY clipY)
+void RenderSingleColorTileClipY(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, DiamondClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
 	for (auto i = 1 + clipY.lowerBottom; i <= lowerMax; ++i, dst -= dstPitch + XStep) {
-		memset(dst, 0, 2 * XStep * i);
+		memset(dst, color, 2 * XStep * i);
 	}
 	dst += 2 * XStep + XStep * clipY.upperBottom;
 	// Upper triangle (drawn bottom to top):
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch - XStep) {
-		memset(dst, 0, TILE_WIDTH - 2 * XStep * i);
+		memset(dst, color, TILE_WIDTH - 2 * XStep * i);
 	}
 }
 
-// Blit a black tile without clipping (must be fully in bounds).
-void RenderBlackTileFull(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch)
+// Blit a single color tile without clipping (must be fully in bounds).
+void RenderSingleColorTileFull(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, uint8_t color)
 {
 	dst += XStep * (LowerHeight - 1);
 	// Tile is fully in bounds, can use constant loop boundaries.
 	// Lower triangle (drawn bottom to top):
 	for (unsigned i = 1; i <= LowerHeight; ++i, dst -= dstPitch + XStep) {
-		memset(dst, 0, 2 * XStep * i);
+		memset(dst, color, 2 * XStep * i);
 	}
 	dst += 2 * XStep;
 	// Upper triangle (drawn bottom to to top):
 	for (unsigned i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch - XStep) {
-		memset(dst, 0, TILE_WIDTH - 2 * XStep * i);
+		memset(dst, color, TILE_WIDTH - 2 * XStep * i);
 	}
+}
+
+const uint8_t *GetSrc(LevelCelBlock levelCelBlock) {
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	return reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
 }
 
 } // namespace
@@ -1153,8 +1146,7 @@ void RenderTile(const Surface &out, Point position,
 	if (clip.width <= 0 || clip.height <= 0)
 		return;
 
-	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
-	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	const uint8_t *src = GetSrc(levelCelBlock);
 	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
 	const uint16_t dstPitch = out.pitch();
 
@@ -1189,7 +1181,16 @@ void RenderTile(const Surface &out, Point position,
 #endif
 }
 
-void world_draw_black_tile(const Surface &out, int sx, int sy)
+void BlitFloorTileToBuffer(LevelCelBlock levelCelBlock, const uint8_t *tbl, uint8_t *out)
+{
+	const TileType tile = levelCelBlock.type();
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	const Clip clip { .top = 0, .bottom = 0, .left = 0, .right = 0, .width = Width, .height = GetTileHeight(tile) };
+	RenderTileDispatch</*Transparent=*/false>(tile, out, DunFrameWidth, src, tbl, clip);
+}
+
+void RenderSingleColorTile(const Surface &out, int sx, int sy, uint8_t color)
 {
 #ifdef DEBUG_RENDER_OFFSET_X
 	sx += DEBUG_RENDER_OFFSET_X;
@@ -1198,24 +1199,94 @@ void world_draw_black_tile(const Surface &out, int sx, int sy)
 	sy += DEBUG_RENDER_OFFSET_Y;
 #endif
 	auto clip = CalculateClip(sx, sy, TILE_WIDTH, TriangleHeight, out);
-	if (clip.width <= 0 || clip.height <= 0)
-		return;
+	if (clip.width <= 0 || clip.height <= 0) return;
 
 	auto clipY = CalculateDiamondClipY(clip);
 	uint8_t *dst = out.at(sx, static_cast<int>(sy - clip.bottom));
 	if (clip.width == TILE_WIDTH) {
 		if (clip.height == TriangleHeight) {
-			RenderBlackTileFull(dst, out.pitch());
+			RenderSingleColorTileFull(dst, out.pitch(), color);
 		} else {
-			RenderBlackTileClipY(dst, out.pitch(), clipY);
+			RenderSingleColorTileClipY(dst, out.pitch(), clipY, color);
 		}
 	} else {
 		if (clip.right == 0) {
-			RenderBlackTileClipLeftAndVertical(dst, out.pitch(), sx, clipY);
+			RenderSingleColorTileClipLeftAndVertical(dst, out.pitch(), sx, clipY, color);
 		} else {
-			RenderBlackTileClipRightAndVertical(dst, out.pitch(), clip.width, clipY);
+			RenderSingleColorTileClipRightAndVertical(dst, out.pitch(), clip.width, clipY, color);
 		}
 	}
+}
+
+void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
+{
+	const TileType tile = levelCelBlock.type();
+	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
+	if (clip.width <= 0 || clip.height <= 0) return;
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+	RenderTileDispatch</*Transparent=*/false>(tile, dst, dstPitch, src, tbl, clip);
+}
+
+void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
+{
+	const TileType tile = levelCelBlock.type();
+	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
+	if (clip.width <= 0 || clip.height <= 0) return;
+	const uint8_t *src = GetSrc(levelCelBlock);
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+	RenderTileDispatch</*Transparent=*/true>(tile, dst, dstPitch, src, tbl, clip);
+}
+
+void RenderFullyLitOpaqueTile(TileType tile, const Surface &out, Point position, const uint8_t *DVL_RESTRICT src)
+{
+	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
+	if (clip.width <= 0 || clip.height <= 0) return;
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+	RenderTileType<LightType::FullyLit, /*Transparent=*/false>(tile, dst, dstPitch, src, nullptr, clip);
+}
+
+void DunTileApplyTrans(LevelCelBlock levelCelBlock, uint8_t *dst, const uint8_t *tbl)
+{
+	const TileType tile = levelCelBlock.type();
+	const uint8_t *src = GetSrc(levelCelBlock);
+
+	size_t size;
+	switch (tile) {
+	case TileType::TransparentSquare:
+		for (size_t i = 0; i < Height; ++i) {
+			uint_fast8_t drawWidth = Width;
+			while (drawWidth > 0) {
+				auto v = static_cast<int8_t>(*src++);
+				*dst++ = v;
+				if (v > 0) {
+					BlitPixelsWithMap(dst, src, v, tbl);
+					src += v;
+					dst += v;
+				} else {
+					v = static_cast<int8_t>(-v);
+				}
+				drawWidth -= v;
+			}
+		}
+		return;
+	case TileType::LeftTriangle:
+	case TileType::RightTriangle:
+		size = 544;
+		break;
+	case TileType::LeftTrapezoid:
+	case TileType::RightTrapezoid:
+		size = 800;
+		break;
+	case TileType::Square:
+		size = Width * Height;
+		break;
+	}
+	BlitPixelsWithMap(dst, src, size, tbl);
 }
 
 } // namespace devilution

@@ -5,6 +5,8 @@
  */
 #include "engine/render/scrollrt.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -19,6 +21,7 @@
 #include "doom.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/dx.h"
+#include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/dun_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -29,6 +32,7 @@
 #include "hwcursor.hpp"
 #include "init.h"
 #include "inv.h"
+#include "levels/dun_tile.hpp"
 #include "lighting.h"
 #include "lua/lua.hpp"
 #include "minitext.h"
@@ -48,9 +52,7 @@
 #include "stores.h"
 #include "towners.h"
 #include "utils/attributes.h"
-#include "utils/bitset2d.hpp"
 #include "utils/display.h"
-#include "utils/endian.hpp"
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
 
@@ -521,8 +523,17 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			const MaskType maskType = getFirstTileMaskLeft(tileType);
 			if (levelCelBlock.hasValue()) {
 				if (maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) {
-					RenderTile(out, targetBufferPosition,
-					    levelCelBlock, maskType, tbl);
+					switch (maskType) {
+					case MaskType::Solid:
+						RenderOpaqueTile(out, targetBufferPosition, levelCelBlock, tbl);
+						break;
+					case MaskType::Transparent:
+						RenderTransparentTile(out, targetBufferPosition, levelCelBlock, tbl);
+						break;
+					default:
+						RenderTile(out, targetBufferPosition, levelCelBlock, maskType, tbl);
+						break;
+					}
 				}
 			}
 		}
@@ -533,8 +544,17 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			if (levelCelBlock.hasValue()) {
 				if (transparency || !foliage || levelCelBlock.type() == TileType::TransparentSquare) {
 					if (maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) {
-						RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-						    levelCelBlock, maskType, tbl);
+						switch (maskType) {
+						case MaskType::Solid:
+							RenderOpaqueTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, tbl);
+							break;
+						case MaskType::Transparent:
+							RenderTransparentTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, tbl);
+							break;
+						default:
+							RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, maskType, tbl);
+							break;
+						}
 					}
 				}
 			}
@@ -543,56 +563,23 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 	}
 
 	for (uint_fast8_t i = 2, n = MicroTileLen; i < n; i += 2) {
-		{
-			const LevelCelBlock levelCelBlock { pMap->mt[i] };
-			if (levelCelBlock.hasValue()) {
-				RenderTile(out, targetBufferPosition,
-				    levelCelBlock,
-				    transparency ? MaskType::Transparent : MaskType::Solid, tbl);
+		if (const LevelCelBlock levelCelBlock { pMap->mt[i] }; levelCelBlock.hasValue()) {
+			if (transparency) {
+				RenderTransparentTile(out, targetBufferPosition, levelCelBlock, tbl);
+			} else {
+				RenderOpaqueTile(out, targetBufferPosition, levelCelBlock, tbl);
 			}
 		}
-		{
-			const LevelCelBlock levelCelBlock { pMap->mt[i + 1] };
-			if (levelCelBlock.hasValue()) {
-				RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-				    levelCelBlock,
-				    transparency ? MaskType::Transparent : MaskType::Solid, tbl);
+		if (const LevelCelBlock levelCelBlock { pMap->mt[i + 1] }; levelCelBlock.hasValue()) {
+			if (transparency) {
+				RenderTransparentTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
+				    levelCelBlock, tbl);
+			} else {
+				RenderOpaqueTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
+				    levelCelBlock, tbl);
 			}
 		}
 		targetBufferPosition.y -= TILE_HEIGHT;
-	}
-}
-
-/**
- * @brief Render a floor tile.
- * @param out Target buffer
- * @param tilePosition dPiece coordinates
- * @param targetBufferPosition Target buffer coordinate
- */
-void DrawFloorTile(const Surface &out, Point tilePosition, Point targetBufferPosition)
-{
-	const int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
-
-	const uint8_t *tbl = LightTables[lightTableIndex].data();
-#ifdef _DEBUG
-	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
-		tbl = GetPauseTRN();
-#endif
-
-	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
-	{
-		const LevelCelBlock levelCelBlock { DPieceMicros[levelPieceId].mt[0] };
-		if (levelCelBlock.hasValue()) {
-			RenderTile(out, targetBufferPosition,
-			    levelCelBlock, MaskType::Solid, tbl);
-		}
-	}
-	{
-		const LevelCelBlock levelCelBlock { DPieceMicros[levelPieceId].mt[1] };
-		if (levelCelBlock.hasValue()) {
-			RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-			    levelCelBlock, MaskType::Solid, tbl);
-		}
 	}
 }
 
@@ -823,8 +810,73 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	}
 }
 
+constexpr int MinFloorTileToBakeLight = 2;
+constexpr size_t FloorTilesBufferSize = 1024;
+struct FloorTilesBufferEntry {
+	PointOf<int16_t> targetBufferPosition;
+	uint32_t id;
+
+	FloorTilesBufferEntry(PointOf<int16_t> position,
+	    uint16_t levelCelBlock,
+	    uint8_t lightTableIndex)
+	    : targetBufferPosition(position)
+	    , id((levelCelBlock << 8) | lightTableIndex)
+	{
+	}
+
+	[[nodiscard]] LevelCelBlock levelCelBlock() const { return { static_cast<uint16_t>(id >> 8) }; }
+	[[nodiscard]] uint8_t lightTableIndex() const { return static_cast<uint8_t>(id); }
+};
+
+void DrawIdenticalFloorTiles(const Surface &out, FloorTilesBufferEntry *begin, FloorTilesBufferEntry *end)
+{
+	if (begin == end) return;
+	const LevelCelBlock levelCelBlock = begin->levelCelBlock();
+	const uint8_t lightTableIndex = begin->lightTableIndex();
+	const uint8_t *lightTable =
+#ifdef _DEBUG
+	    lightTableIndex == NumLightingLevels + 1
+	    ? GetPauseTRN()
+	    :
+#endif
+	    LightTables[lightTableIndex].data();
+	if (end - begin < MinFloorTileToBakeLight || IsFullyDark(lightTable) || IsFullyLit(lightTable)) {
+		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
+			RenderOpaqueTile(out, it->targetBufferPosition, levelCelBlock, lightTable);
+		}
+	} else {
+		uint8_t bakedLightTile[DunFrameHeight * DunFrameWidth];
+		DunTileApplyTrans(levelCelBlock, bakedLightTile, lightTable);
+		const TileType type = levelCelBlock.type();
+		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
+			RenderFullyLitOpaqueTile(type, out, it->targetBufferPosition, bakedLightTile);
+		}
+	}
+}
+
+void DrawFloorBuffer(const Surface &out,
+    StaticVector<FloorTilesBufferEntry, FloorTilesBufferSize> &buffer)
+{
+	if (buffer.empty()) return;
+	std::stable_sort(buffer.begin(), buffer.end(), [](const FloorTilesBufferEntry &a, const FloorTilesBufferEntry &b) {
+		return a.id < b.id;
+	});
+	uint32_t prevId = buffer[0].id;
+	size_t prevBegin = 0;
+	for (size_t i = 1; i < buffer.size(); ++i) {
+		const uint32_t id = buffer[i].id;
+		if (prevId != id) {
+			DrawIdenticalFloorTiles(out, buffer.begin() + prevBegin, buffer.begin() + i);
+			prevId = id;
+			prevBegin = i;
+		}
+	}
+	DrawIdenticalFloorTiles(out, buffer.begin() + prevBegin, buffer.end());
+	buffer.clear();
+}
+
 /**
- * @brief Render a row of tiles
+ * @brief Renders the floor tiles
  * @param out Buffer to render to
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinates
@@ -833,33 +885,50 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
  */
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
+	StaticVector<FloorTilesBufferEntry, FloorTilesBufferSize> buffer;
+	PointOf<int16_t> position = targetBufferPosition;
 	for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition)) {
-				if (!TileHasAny(tilePosition, TileProperties::Solid))
-					DrawFloorTile(out, tilePosition, targetBufferPosition);
-			} else {
-				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
+		for (int j = 0; j < columns; ++j) {
+			if (!InDungeonBounds(tilePosition)) {
+				RenderSingleColorTile(out, position.x, position.y);
+			} else if (!TileHasAny(tilePosition, TileProperties::Solid)) {
+				const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
+				const uint8_t lightTableIndex =
+#ifdef _DEBUG
+				    DebugPath && MyPlayer->IsPositionInPath(tilePosition)
+				    ? NumLightingLevels + 1
+				    :
+#endif
+				    dLight[tilePosition.x][tilePosition.y];
+				if (buffer.size() + 2 >= FloorTilesBufferSize) DrawFloorBuffer(out, buffer);
+				if (const uint16_t pieceId = DPieceMicros[levelPieceId].mt[0].data; pieceId != 0) {
+					buffer.emplace_back(position, pieceId, lightTableIndex);
+				}
+				if (const uint16_t pieceId = DPieceMicros[levelPieceId].mt[1].data; pieceId != 0) {
+					buffer.emplace_back(position + Displacement { TILE_WIDTH / 2, 0 }, pieceId, lightTableIndex);
+				}
 			}
 			tilePosition += Direction::East;
-			targetBufferPosition.x += TILE_WIDTH;
+			position.x += TILE_WIDTH;
 		}
+
 		// Return to start of row
 		tilePosition += Displacement(Direction::West) * columns;
-		targetBufferPosition.x -= columns * TILE_WIDTH;
+		position.x -= columns * TILE_WIDTH;
 
 		// Jump to next row
-		targetBufferPosition.y += TILE_HEIGHT / 2;
+		position.y += TILE_HEIGHT / 2;
 		if ((i & 1) != 0) {
 			tilePosition.x++;
 			columns--;
-			targetBufferPosition.x += TILE_WIDTH / 2;
+			position.x += TILE_WIDTH / 2;
 		} else {
 			tilePosition.y++;
 			columns++;
-			targetBufferPosition.x -= TILE_WIDTH / 2;
+			position.x -= TILE_WIDTH / 2;
 		}
 	}
+	DrawFloorBuffer(out, buffer);
 }
 
 [[nodiscard]] DVL_ALWAYS_INLINE bool IsWall(Point position)
@@ -987,7 +1056,7 @@ void Zoom(const Surface &out)
 
 Displacement tileOffset;
 Displacement tileShift;
-int tileColums;
+int tileColumns;
 int tileRows;
 
 void CalcFirstTilePosition(Point &position, Displacement &offset)
@@ -1048,7 +1117,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	    ? fullOut.subregionY(0, gnViewportHeight)
 	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
 
-	int columns = tileColums;
+	int columns = tileColumns;
 	int rows = tileRows;
 
 	// Skip rendering parts covered by the panels
@@ -1511,7 +1580,7 @@ void CalcViewportGeometry()
 	const int viewportHeight = GetViewportHeight() / zoomFactor;
 	const Point renderStart = startPosition - Displacement { TILE_WIDTH / 2, TILE_HEIGHT / 2 };
 	tileRows = (viewportHeight - renderStart.y + TILE_HEIGHT / 2 - 1) / (TILE_HEIGHT / 2);
-	tileColums = (screenWidth - renderStart.x + TILE_WIDTH - 1) / TILE_WIDTH;
+	tileColumns = (screenWidth - renderStart.x + TILE_WIDTH - 1) / TILE_WIDTH;
 }
 
 Point GetScreenPosition(Point tile)
