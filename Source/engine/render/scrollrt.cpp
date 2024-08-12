@@ -523,17 +523,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			const MaskType maskType = getFirstTileMaskLeft(tileType);
 			if (levelCelBlock.hasValue()) {
 				if (maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) {
-					switch (maskType) {
-					case MaskType::Solid:
-						RenderOpaqueTile(out, targetBufferPosition, levelCelBlock, tbl);
-						break;
-					case MaskType::Transparent:
-						RenderTransparentTile(out, targetBufferPosition, levelCelBlock, tbl);
-						break;
-					default:
 						RenderTile(out, targetBufferPosition, levelCelBlock, maskType, tbl);
-						break;
-					}
 				}
 			}
 		}
@@ -544,17 +534,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			if (levelCelBlock.hasValue()) {
 				if (transparency || !foliage || levelCelBlock.type() == TileType::TransparentSquare) {
 					if (maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) {
-						switch (maskType) {
-						case MaskType::Solid:
-							RenderOpaqueTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, tbl);
-							break;
-						case MaskType::Transparent:
-							RenderTransparentTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, tbl);
-							break;
-						default:
-							RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, maskType, tbl);
-							break;
-						}
+						RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, maskType, tbl);
 					}
 				}
 			}
@@ -564,20 +544,11 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 
 	for (uint_fast8_t i = 2, n = MicroTileLen; i < n; i += 2) {
 		if (const LevelCelBlock levelCelBlock { pMap->mt[i] }; levelCelBlock.hasValue()) {
-			if (transparency) {
-				RenderTransparentTile(out, targetBufferPosition, levelCelBlock, tbl);
-			} else {
-				RenderOpaqueTile(out, targetBufferPosition, levelCelBlock, tbl);
-			}
+			RenderTile(out, targetBufferPosition, levelCelBlock, transparency ? MaskType::Transparent : MaskType::Solid, tbl);
 		}
 		if (const LevelCelBlock levelCelBlock { pMap->mt[i + 1] }; levelCelBlock.hasValue()) {
-			if (transparency) {
-				RenderTransparentTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-				    levelCelBlock, tbl);
-			} else {
-				RenderOpaqueTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
-				    levelCelBlock, tbl);
-			}
+			RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
+					levelCelBlock, transparency ? MaskType::Transparent : MaskType::Solid, tbl);
 		}
 		targetBufferPosition.y -= TILE_HEIGHT;
 	}
@@ -842,15 +813,23 @@ void DrawIdenticalFloorTiles(const Surface &out, FloorTilesBufferEntry *begin, F
 	    LightTables[lightTableIndex].data();
 	if (end - begin < MinFloorTileToBakeLight || IsFullyDark(lightTable) || IsFullyLit(lightTable)) {
 		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
-			RenderOpaqueTile(out, it->targetBufferPosition, levelCelBlock, lightTable);
+			RenderTile(out, it->targetBufferPosition, levelCelBlock, MaskType::Solid, lightTable);
 		}
 	} else {
 		uint8_t bakedLightTile[DunFrameHeight * DunFrameWidth];
 		DunTileApplyTrans(levelCelBlock, bakedLightTile, lightTable);
 		const TileType type = levelCelBlock.type();
+
+		// // Doesn't matter what `FullyLitLightTable` light table points to, as long as it's not `nullptr`.
+		// uint8_t *fullyLitBefore = FullyLitLightTable;
+		// FullyLitLightTable = LightTables[0].data();
+
 		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
+			// RenderTile(out, it->targetBufferPosition, type, bakedLightTile, MaskType::Solid, FullyLitLightTable);
 			RenderFullyLitOpaqueTile(type, out, it->targetBufferPosition, bakedLightTile);
 		}
+
+		// FullyLitLightTable = fullyLitBefore;
 	}
 }
 

@@ -7,6 +7,8 @@
 
 #include <cstdint>
 
+#include <SDL_endian.h>
+
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 #include "levels/dun_tile.hpp"
@@ -162,6 +164,41 @@ std::string_view TileTypeToString(TileType tileType);
 std::string_view MaskTypeToString(MaskType maskType);
 #endif
 
+struct DunTileClip {
+	int_fast16_t top;
+	int_fast16_t bottom;
+	int_fast16_t left;
+	int_fast16_t right;
+	int_fast16_t width;
+	int_fast16_t height;
+};
+
+void RenderTile(uint8_t *dst, uint16_t dstPitch,
+    TileType tile, const uint8_t *src, MaskType maskType, const uint8_t *tbl, const DunTileClip &clip);
+
+DVL_ALWAYS_INLINE const uint8_t *GetDungeonTileSrc(uint16_t frame)
+{
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	return reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[frame])]);
+}
+
+DVL_ALWAYS_INLINE DunTileClip CalculateDunTileClip(int_fast16_t x, int_fast16_t y, int_fast16_t w, int_fast16_t h, const Surface &out)
+{
+	DunTileClip clip;
+	clip.top = y + 1 < h ? h - (y + 1) : 0;
+	clip.bottom = y + 1 > out.h() ? (y + 1) - out.h() : 0;
+	clip.left = x < 0 ? -x : 0;
+	clip.right = x + w > out.w() ? x + w - out.w() : 0;
+	clip.width = w - clip.left - clip.right;
+	clip.height = h - clip.top - clip.bottom;
+	return clip;
+}
+
+DVL_ALWAYS_INLINE int_fast16_t GetTileHeight(TileType tile)
+{
+	return tile == TileType::LeftTriangle || tile == TileType::RightTriangle ? 31 : 32;
+}
+
 /**
  * @brief Blit current world CEL to the given buffer
  * @param out Target buffer
@@ -170,8 +207,15 @@ std::string_view MaskTypeToString(MaskType maskType);
  * @param maskType The mask to use,
  * @param tbl LightTable or TRN for a tile.
  */
-void RenderTile(const Surface &out, Point position,
-    LevelCelBlock levelCelBlock, MaskType maskType, const uint8_t *tbl);
+DVL_ALWAYS_INLINE void RenderTile(const Surface &out, Point position,
+    LevelCelBlock levelCelBlock, MaskType maskType, const uint8_t *tbl)
+{
+	const TileType tile = levelCelBlock.type();
+	const DunTileClip clip = CalculateDunTileClip(position.x, position.y, DunFrameWidth, GetTileHeight(tile), out);
+	if (clip.width <= 0 || clip.height <= 0) return;
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	RenderTile(dst, out.pitch(), tile, GetDungeonTileSrc(levelCelBlock.frame()), maskType, tbl, clip);
+}
 
 /**
  * @brief Render a single color 64x31 tile ◆
@@ -182,12 +226,12 @@ void RenderTile(const Surface &out, Point position,
  */
 void RenderSingleColorTile(const Surface &out, int sx, int sy, uint8_t color = 0);
 
-inline bool IsFullyDark(const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE bool IsFullyDark(const uint8_t *DVL_RESTRICT tbl)
 {
 	return tbl == FullyDarkLightTable;
 }
 
-inline bool IsFullyLit(const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE bool IsFullyLit(const uint8_t *DVL_RESTRICT tbl)
 {
 	return tbl == FullyLitLightTable;
 }
@@ -195,17 +239,30 @@ inline bool IsFullyLit(const uint8_t *DVL_RESTRICT tbl)
 /**
  * @brief Renders a tile without masking.
  */
-void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
+// void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
 
 /**
  * @brief Renders a tile with transparency blending.
  */
-void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
+// void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl);
 
 /**
  * @brief Renders a tile without masking and without lighting.
  */
-void RenderFullyLitOpaqueTile(TileType tile, const Surface &out, Point position, const uint8_t *DVL_RESTRICT src);
+DVL_ALWAYS_INLINE void RenderFullyLitOpaqueTile(TileType tile, const Surface &out, Point position, const uint8_t *src)
+{
+	const DunTileClip clip = CalculateDunTileClip(position.x, position.y, DunFrameWidth, GetTileHeight(tile), out);
+	if (clip.width <= 0 || clip.height <= 0) return;
+	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+	const uint16_t dstPitch = out.pitch();
+	// RenderTileType<LightType::FullyLit, /*Transparent=*/false>(tile, dst, dstPitch, src, nullptr, clip);
+
+	// Doesn't matter what `FullyLitLightTable` light table points to, as long as it's not `nullptr`.
+	uint8_t *fullyLitBefore = FullyLitLightTable;
+	FullyLitLightTable = LightTables[0].data();
+	RenderTile(dst, dstPitch, tile, src, MaskType::Solid, FullyLitLightTable, clip);
+	FullyLitLightTable = fullyLitBefore;
+}
 
 /**
  * @brief Writes a tile with the color swaps from `tbl` to `dst`.

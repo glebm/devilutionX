@@ -52,13 +52,6 @@ constexpr int_fast16_t TriangleHeight = LowerHeight + TriangleUpperHeight;
 /** For triangles, for each pixel drawn vertically, this many pixels are drawn horizontally. */
 constexpr int_fast16_t XStep = 2;
 
-int_fast16_t GetTileHeight(TileType tile)
-{
-	if (tile == TileType::LeftTriangle || tile == TileType::RightTriangle)
-		return TriangleHeight;
-	return Height;
-}
-
 #ifdef DEBUG_STR
 std::pair<std::string_view, UiFlags> GetTileDebugStr(TileType tile)
 {
@@ -259,27 +252,6 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLine(uint8_t *DVL_RESTRICT dst, c
 	}
 }
 
-struct Clip {
-	int_fast16_t top;
-	int_fast16_t bottom;
-	int_fast16_t left;
-	int_fast16_t right;
-	int_fast16_t width;
-	int_fast16_t height;
-};
-
-DVL_ALWAYS_INLINE Clip CalculateClip(int_fast16_t x, int_fast16_t y, int_fast16_t w, int_fast16_t h, const Surface &out)
-{
-	Clip clip;
-	clip.top = y + 1 < h ? h - (y + 1) : 0;
-	clip.bottom = y + 1 > out.h() ? (y + 1) - out.h() : 0;
-	clip.left = x < 0 ? -x : 0;
-	clip.right = x + w > out.w() ? x + w - out.w() : 0;
-	clip.width = w - clip.left - clip.right;
-	clip.height = h - clip.top - clip.bottom;
-	return clip;
-}
-
 template <LightType Light, bool Transparent>
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareFull(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl)
 {
@@ -290,7 +262,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareFull(uint8_t *DVL_RESTRICT 
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareClipped(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareDunTileClipped(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	src += clip.bottom * Height + clip.left;
 	for (auto i = 0; i < clip.height; ++i, dst -= dstPitch) {
@@ -300,12 +272,12 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquareClipped(uint8_t *DVL_RESTRI
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width && clip.height == Height) {
 		RenderSquareFull<Light, Transparent>(dst, dstPitch, src, tbl);
 	} else {
-		RenderSquareClipped<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderSquareDunTileClipped<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
@@ -332,7 +304,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareFull(uint8_t *DV
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): Actually complex and has to be fast.
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareDunTileClipped(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	const auto skipRestOfTheLine = [&src](int_fast16_t remainingWidth) {
 		while (remainingWidth > 0) {
@@ -358,26 +330,26 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t 
 
 		// Skip initial src if clipping on the left.
 		// Handles overshoot, i.e. when the RLE segment goes into the unclipped area.
-		auto remainingLeftClip = clip.left;
-		while (remainingLeftClip > 0) {
+		auto remainingLeftDunTileClip = clip.left;
+		while (remainingLeftDunTileClip > 0) {
 			auto v = static_cast<int8_t>(*src++);
 			if (v > 0) {
-				if (v > remainingLeftClip) {
-					const auto overshoot = v - remainingLeftClip;
-					RenderLine<Light, OpaquePrefix, PrefixIncrement>(dst, src + remainingLeftClip, overshoot, tbl, prefix - (Width - remainingLeftClip));
+				if (v > remainingLeftDunTileClip) {
+					const auto overshoot = v - remainingLeftDunTileClip;
+					RenderLine<Light, OpaquePrefix, PrefixIncrement>(dst, src + remainingLeftDunTileClip, overshoot, tbl, prefix - (Width - remainingLeftDunTileClip));
 					dst += overshoot;
 					drawWidth -= overshoot;
 				}
 				src += v;
 			} else {
 				v = -v;
-				if (v > remainingLeftClip) {
-					const auto overshoot = v - remainingLeftClip;
+				if (v > remainingLeftDunTileClip) {
+					const auto overshoot = v - remainingLeftDunTileClip;
 					dst += overshoot;
 					drawWidth -= overshoot;
 				}
 			}
-			remainingLeftClip -= v;
+			remainingLeftDunTileClip -= v;
 		}
 
 		// Draw the non-clipped segment
@@ -413,17 +385,17 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareClipped(uint8_t 
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquare(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width && clip.height == Height) {
 		RenderTransparentSquareFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 	} else {
-		RenderTransparentSquareClipped<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderTransparentSquareDunTileClipped<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
 /** Vertical clip for the lower and upper triangles of a diamond tile (L/RTRIANGLE).*/
-struct DiamondClipY {
+struct DiamondDunTileClipY {
 	int_fast16_t lowerBottom;
 	int_fast16_t lowerTop;
 	int_fast16_t upperBottom;
@@ -431,9 +403,9 @@ struct DiamondClipY {
 };
 
 template <int_fast16_t UpperHeight = TriangleUpperHeight>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT DiamondClipY CalculateDiamondClipY(const Clip &clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT DiamondDunTileClipY CalculateDiamondDunTileClipY(const DunTileClip &clip)
 {
-	DiamondClipY result;
+	DiamondDunTileClipY result;
 	if (clip.bottom > LowerHeight) {
 		result.lowerBottom = LowerHeight;
 		result.upperBottom = clip.bottom - LowerHeight;
@@ -473,7 +445,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLower(uint8_t *DVL_RE
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerClipVertical(const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerDunTileClipVertical(const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
@@ -487,7 +459,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerClipVertical(con
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerClipLeftAndVertical(int_fast16_t clipLeft, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerDunTileClipLeftAndVertical(int_fast16_t clipLeft, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1) - clipLeft;
@@ -504,7 +476,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerClipLeftAndVerti
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerClipRightAndVertical(int_fast16_t clipRight, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleLowerDunTileClipRightAndVertical(int_fast16_t clipRight, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
@@ -532,10 +504,10 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleFull(uint8_t *DVL_RES
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleDunTileClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
-	RenderLeftTriangleLowerClipVertical<Light, Transparent>(clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
+	RenderLeftTriangleLowerDunTileClipVertical<Light, Transparent>(clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
@@ -548,11 +520,11 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipVertical(uint8_t 
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleDunTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
 	const int_fast16_t clipLeft = clip.left;
-	RenderLeftTriangleLowerClipLeftAndVertical<Light, Transparent>(clipLeft, clipY, dst, dstPitch, src, tbl);
+	RenderLeftTriangleLowerDunTileClipLeftAndVertical<Light, Transparent>(clipLeft, clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
@@ -567,11 +539,11 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipLeftAndVertical(u
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleDunTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
 	const int_fast16_t clipRight = clip.right;
-	RenderLeftTriangleLowerClipRightAndVertical<Light, Transparent>(clipRight, clipY, dst, dstPitch, src, tbl);
+	RenderLeftTriangleLowerDunTileClipRightAndVertical<Light, Transparent>(clipRight, clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	dst += 2 * XStep + XStep * clipY.upperBottom;
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
@@ -586,18 +558,18 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangleClipRightAndVertical(
 }
 
 template <LightType Light, bool Transparent>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == TriangleHeight) {
 			RenderLeftTriangleFull<Light, Transparent>(dst, dstPitch, src, tbl);
 		} else {
-			RenderLeftTriangleClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+			RenderLeftTriangleDunTileClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderLeftTriangleClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTriangleDunTileClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderLeftTriangleClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTriangleDunTileClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
@@ -612,7 +584,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLower(uint8_t *DVL_R
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerClipVertical(const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerDunTileClipVertical(const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
@@ -624,7 +596,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerClipVertical(co
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerClipLeftAndVertical(int_fast16_t clipLeft, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerDunTileClipLeftAndVertical(int_fast16_t clipLeft, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
@@ -637,7 +609,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerClipLeftAndVert
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerClipRightAndVertical(int_fast16_t clipRight, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleLowerDunTileClipRightAndVertical(int_fast16_t clipRight, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT &dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT &src, const uint8_t *DVL_RESTRICT tbl)
 {
 	src += CalculateTriangleSourceSkipLowerBottom(clipY.lowerBottom);
 	const auto lowerMax = LowerHeight - clipY.lowerTop;
@@ -662,10 +634,10 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleFull(uint8_t *DVL_RE
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleDunTileClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
-	RenderRightTriangleLowerClipVertical<Light, Transparent>(clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
+	RenderRightTriangleLowerDunTileClipVertical<Light, Transparent>(clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -676,11 +648,11 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipVertical(uint8_t
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleDunTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
 	const int_fast16_t clipLeft = clip.left;
-	RenderRightTriangleLowerClipLeftAndVertical<Light, Transparent>(clipLeft, clipY, dst, dstPitch, src, tbl);
+	RenderRightTriangleLowerDunTileClipLeftAndVertical<Light, Transparent>(clipLeft, clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -693,11 +665,11 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipLeftAndVertical(
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleDunTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY(clip);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY(clip);
 	const int_fast16_t clipRight = clip.right;
-	RenderRightTriangleLowerClipRightAndVertical<Light, Transparent>(clipRight, clipY, dst, dstPitch, src, tbl);
+	RenderRightTriangleLowerDunTileClipRightAndVertical<Light, Transparent>(clipRight, clipY, dst, dstPitch, src, tbl);
 	src += CalculateTriangleSourceSkipUpperBottom(clipY.upperBottom);
 	const auto upperMax = TriangleUpperHeight - clipY.upperTop;
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -709,18 +681,18 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangleClipRightAndVertical
 }
 
 template <LightType Light, bool Transparent>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTriangle(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == TriangleHeight) {
 			RenderRightTriangleFull<Light, Transparent>(dst, dstPitch, src, tbl);
 		} else {
-			RenderRightTriangleClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+			RenderRightTriangleDunTileClipVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderRightTriangleClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderRightTriangleDunTileClipLeftAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderRightTriangleClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
+		RenderRightTriangleDunTileClipRightAndVertical<Light, Transparent>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
@@ -757,7 +729,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalf(uint8_t *DVL_R
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfClipVertical(const Clip &clip, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfDunTileClipVertical(const DunTileClip &clip, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	int8_t prefix = InitPrefix<PrefixIncrement>(clip.bottom);
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -768,7 +740,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfClipVertical(co
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfClipLeftAndVertical(const Clip &clip, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfDunTileClipLeftAndVertical(const DunTileClip &clip, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	int8_t prefix = InitPrefix<PrefixIncrement>(clip.bottom);
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -779,7 +751,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfClipLeftAndVert
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfClipRightAndVertical(const Clip &clip, const DiamondClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTrapezoidUpperHalfDunTileClipRightAndVertical(const DunTileClip &clip, const DiamondDunTileClipY &clipY, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl) {
 	const auto upperMax = TrapezoidUpperHeight - clipY.upperTop;
 	int8_t prefix = InitPrefix<PrefixIncrement>(clip.bottom);
 	for (auto i = 1 + clipY.upperBottom; i <= upperMax; ++i, dst -= dstPitch) {
@@ -798,48 +770,48 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidFull(uint8_t *DVL_RE
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidDunTileClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderLeftTriangleLowerClipVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderLeftTriangleLowerDunTileClipVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width;
 	dst += XStep;
-	RenderTrapezoidUpperHalfClipVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidDunTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderLeftTriangleLowerClipLeftAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.left, clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderLeftTriangleLowerDunTileClipLeftAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.left, clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width + clip.left;
 	dst += XStep + clip.left;
-	RenderTrapezoidUpperHalfClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidDunTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderLeftTriangleLowerClipRightAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.right, clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderLeftTriangleLowerDunTileClipRightAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.right, clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width;
 	dst += XStep;
-	RenderTrapezoidUpperHalfClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
 			RenderLeftTrapezoidFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 		} else {
-			RenderLeftTrapezoidClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+			RenderLeftTrapezoidDunTileClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderLeftTrapezoidClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTrapezoidDunTileClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderLeftTrapezoidClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderLeftTrapezoidDunTileClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
@@ -851,50 +823,50 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidFull(uint8_t *DVL_R
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidDunTileClipVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderRightTriangleLowerClipVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderRightTriangleLowerDunTileClipVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width;
-	RenderTrapezoidUpperHalfClipVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidDunTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderRightTriangleLowerClipLeftAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.left, clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderRightTriangleLowerDunTileClipLeftAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.left, clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width + clip.left;
-	RenderTrapezoidUpperHalfClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidDunTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
-	const DiamondClipY clipY = CalculateDiamondClipY<TrapezoidUpperHeight>(clip);
-	RenderRightTriangleLowerClipRightAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.right, clipY, dst, dstPitch, src, tbl);
+	const DiamondDunTileClipY clipY = CalculateDiamondDunTileClipY<TrapezoidUpperHeight>(clip);
+	RenderRightTriangleLowerDunTileClipRightAndVertical<Light, LowerHalfTransparent<OpaquePrefix, PrefixIncrement>>(clip.right, clipY, dst, dstPitch, src, tbl);
 	src += clipY.upperBottom * Width;
-	RenderTrapezoidUpperHalfClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
+	RenderTrapezoidUpperHalfDunTileClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(clip, clipY, dst, dstPitch, src, tbl);
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement = 0>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoid(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (clip.width == Width) {
 		if (clip.height == Height) {
 			RenderRightTrapezoidFull<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl);
 		} else {
-			RenderRightTrapezoidClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+			RenderRightTrapezoidDunTileClipVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 		}
 	} else if (clip.right == 0) {
-		RenderRightTrapezoidClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidDunTileClipLeftAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	} else {
-		RenderRightTrapezoidClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
+		RenderRightTrapezoidDunTileClipRightAndVertical<Light, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
 	}
 }
 
 template <LightType Light, bool Transparent>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	switch (tile) {
 	case TileType::Square:
@@ -919,7 +891,7 @@ DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileType(TileType tile, uint8_t *DVL_
 }
 
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareDispatch(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareDispatch(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (IsFullyDark(tbl)) {
 		RenderTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(dst, dstPitch, src, tbl, clip);
@@ -931,7 +903,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTransparentSquareDispatch(uint8_t
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	switch (tile) {
 	case TileType::TransparentSquare:
@@ -946,7 +918,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquare(
 }
 
 template <LightType Light, bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	switch (tile) {
 	case TileType::TransparentSquare:
@@ -961,7 +933,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare
 }
 
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquareDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquareDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (IsFullyDark(tbl)) {
 		RenderLeftTrapezoidOrTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
@@ -973,7 +945,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderLeftTrapezoidOrTransparentSquareD
 }
 
 template <bool OpaquePrefix, int8_t PrefixIncrement>
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquareDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquareDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (IsFullyDark(tbl)) {
 		RenderRightTrapezoidOrTransparentSquare<LightType::FullyDark, OpaquePrefix, PrefixIncrement>(tile, dst, dstPitch, src, tbl, clip);
@@ -985,7 +957,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderRightTrapezoidOrTransparentSquare
 }
 
 template <bool Transparent>
-DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, Clip clip)
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, const uint8_t *DVL_RESTRICT src, const uint8_t *DVL_RESTRICT tbl, DunTileClip clip)
 {
 	if (IsFullyDark(tbl)) {
 		RenderTileType<LightType::FullyDark, Transparent>(tile, dst, dstPitch, src, tbl, clip);
@@ -997,7 +969,7 @@ DVL_NO_INLINE DVL_ATTRIBUTE_HOT void RenderTileDispatch(TileType tile, uint8_t *
 }
 
 // Blit with left and vertical clipping.
-void RenderSingleColorTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int sx, DiamondClipY clipY, uint8_t color)
+void RenderSingleColorTileDunTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int sx, DiamondDunTileClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
@@ -1028,7 +1000,7 @@ void RenderSingleColorTileClipLeftAndVertical(uint8_t *DVL_RESTRICT dst, uint16_
 }
 
 // Blit with right and vertical clipping.
-void RenderSingleColorTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int_fast16_t maxWidth, DiamondClipY clipY, uint8_t color)
+void RenderSingleColorTileDunTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, int_fast16_t maxWidth, DiamondDunTileClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
@@ -1054,7 +1026,7 @@ void RenderSingleColorTileClipRightAndVertical(uint8_t *DVL_RESTRICT dst, uint16
 }
 
 // Blit with vertical clipping only.
-void RenderSingleColorTileClipY(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, DiamondClipY clipY, uint8_t color)
+void RenderSingleColorTileDunTileClipY(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, DiamondDunTileClipY clipY, uint8_t color)
 {
 	dst += XStep * (LowerHeight - clipY.lowerBottom - 1);
 	// Lower triangle (drawn bottom to top):
@@ -1084,11 +1056,6 @@ void RenderSingleColorTileFull(uint8_t *DVL_RESTRICT dst, uint16_t dstPitch, uin
 	for (unsigned i = 1; i <= TriangleUpperHeight; ++i, dst -= dstPitch - XStep) {
 		memset(dst, color, TILE_WIDTH - 2 * XStep * i);
 	}
-}
-
-const uint8_t *GetSrc(LevelCelBlock levelCelBlock) {
-	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
-	return reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
 }
 
 } // namespace
@@ -1127,11 +1094,9 @@ std::string_view MaskTypeToString(MaskType maskType)
 }
 #endif
 
-void RenderTile(const Surface &out, Point position,
-    LevelCelBlock levelCelBlock, MaskType maskType, const uint8_t *tbl)
+void RenderTile(uint8_t *dst, uint16_t dstPitch,
+    TileType tile, const uint8_t *src, MaskType maskType, const uint8_t *tbl, const DunTileClip &clip)
 {
-	const TileType tile = levelCelBlock.type();
-
 #ifdef DEBUG_RENDER_OFFSET_X
 	position.x += DEBUG_RENDER_OFFSET_X;
 #endif
@@ -1141,14 +1106,6 @@ void RenderTile(const Surface &out, Point position,
 #ifdef DEBUG_RENDER_COLOR
 	DBGCOLOR = GetTileDebugColor(tile);
 #endif
-
-	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
-	if (clip.width <= 0 || clip.height <= 0)
-		return;
-
-	const uint8_t *src = GetSrc(levelCelBlock);
-	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
-	const uint16_t dstPitch = out.pitch();
 
 #ifdef DUN_RENDER_STATS
 	++DunRenderStats[DunRenderType { tile, maskType }];
@@ -1181,15 +1138,6 @@ void RenderTile(const Surface &out, Point position,
 #endif
 }
 
-void BlitFloorTileToBuffer(LevelCelBlock levelCelBlock, const uint8_t *tbl, uint8_t *out)
-{
-	const TileType tile = levelCelBlock.type();
-	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
-	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
-	const Clip clip { .top = 0, .bottom = 0, .left = 0, .right = 0, .width = Width, .height = GetTileHeight(tile) };
-	RenderTileDispatch</*Transparent=*/false>(tile, out, DunFrameWidth, src, tbl, clip);
-}
-
 void RenderSingleColorTile(const Surface &out, int sx, int sy, uint8_t color)
 {
 #ifdef DEBUG_RENDER_OFFSET_X
@@ -1198,62 +1146,55 @@ void RenderSingleColorTile(const Surface &out, int sx, int sy, uint8_t color)
 #ifdef DEBUG_RENDER_OFFSET_Y
 	sy += DEBUG_RENDER_OFFSET_Y;
 #endif
-	auto clip = CalculateClip(sx, sy, TILE_WIDTH, TriangleHeight, out);
+	auto clip = CalculateDunTileClip(sx, sy, TILE_WIDTH, TriangleHeight, out);
 	if (clip.width <= 0 || clip.height <= 0) return;
 
-	auto clipY = CalculateDiamondClipY(clip);
+	auto clipY = CalculateDiamondDunTileClipY(clip);
 	uint8_t *dst = out.at(sx, static_cast<int>(sy - clip.bottom));
 	if (clip.width == TILE_WIDTH) {
 		if (clip.height == TriangleHeight) {
 			RenderSingleColorTileFull(dst, out.pitch(), color);
 		} else {
-			RenderSingleColorTileClipY(dst, out.pitch(), clipY, color);
+			RenderSingleColorTileDunTileClipY(dst, out.pitch(), clipY, color);
 		}
 	} else {
 		if (clip.right == 0) {
-			RenderSingleColorTileClipLeftAndVertical(dst, out.pitch(), sx, clipY, color);
+			RenderSingleColorTileDunTileClipLeftAndVertical(dst, out.pitch(), sx, clipY, color);
 		} else {
-			RenderSingleColorTileClipRightAndVertical(dst, out.pitch(), clip.width, clipY, color);
+			RenderSingleColorTileDunTileClipRightAndVertical(dst, out.pitch(), clip.width, clipY, color);
 		}
 	}
 }
 
-void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
-{
-	const TileType tile = levelCelBlock.type();
-	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
-	if (clip.width <= 0 || clip.height <= 0) return;
-	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
-	const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
-	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
-	const uint16_t dstPitch = out.pitch();
-	RenderTileDispatch</*Transparent=*/false>(tile, dst, dstPitch, src, tbl, clip);
-}
+// void RenderOpaqueTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
+// {
+// 	// const TileType tile = levelCelBlock.type();
+// 	// const DunTileClip clip = CalculateDunTileClip(position.x, position.y, Width, GetTileHeight(tile), out);
+// 	// if (clip.width <= 0 || clip.height <= 0) return;
+// 	// const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+// 	// const auto *src = reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[levelCelBlock.frame()])]);
+// 	// uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+// 	// const uint16_t dstPitch = out.pitch();
+// 	// RenderTileDispatch</*Transparent=*/false>(tile, dst, dstPitch, src, tbl, clip);
+// 	RenderTile(out, position, levelCelBlock, MaskType::Solid, tbl);
+// }
 
-void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
-{
-	const TileType tile = levelCelBlock.type();
-	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
-	if (clip.width <= 0 || clip.height <= 0) return;
-	const uint8_t *src = GetSrc(levelCelBlock);
-	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
-	const uint16_t dstPitch = out.pitch();
-	RenderTileDispatch</*Transparent=*/true>(tile, dst, dstPitch, src, tbl, clip);
-}
-
-void RenderFullyLitOpaqueTile(TileType tile, const Surface &out, Point position, const uint8_t *DVL_RESTRICT src)
-{
-	const Clip clip = CalculateClip(position.x, position.y, Width, GetTileHeight(tile), out);
-	if (clip.width <= 0 || clip.height <= 0) return;
-	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
-	const uint16_t dstPitch = out.pitch();
-	RenderTileType<LightType::FullyLit, /*Transparent=*/false>(tile, dst, dstPitch, src, nullptr, clip);
-}
+// void RenderTransparentTile(const Surface &out, Point position, LevelCelBlock levelCelBlock, const uint8_t *tbl)
+// {
+// 	// const TileType tile = levelCelBlock.type();
+// 	// const DunTileClip clip = CalculateDunTileClip(position.x, position.y, Width, GetTileHeight(tile), out);
+// 	// if (clip.width <= 0 || clip.height <= 0) return;
+// 	// const uint8_t *src = GetSrc(levelCelBlock);
+// 	// uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
+// 	// const uint16_t dstPitch = out.pitch();
+// 	// RenderTileDispatch</*Transparent=*/true>(tile, dst, dstPitch, src, tbl, clip);
+// 	RenderTile(out, position, levelCelBlock, MaskType::Transparent, tbl);
+// }
 
 void DunTileApplyTrans(LevelCelBlock levelCelBlock, uint8_t *dst, const uint8_t *tbl)
 {
 	const TileType tile = levelCelBlock.type();
-	const uint8_t *src = GetSrc(levelCelBlock);
+	const uint8_t *src = GetDungeonTileSrc(levelCelBlock.frame());
 
 	size_t size;
 	switch (tile) {
