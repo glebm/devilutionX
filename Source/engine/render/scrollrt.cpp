@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <queue>
 
 #include <ankerl/unordered_dense.h>
 
@@ -781,37 +782,82 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	}
 }
 
-constexpr int MinFloorTileToBakeLight = 2;
-constexpr size_t FloorTilesBufferSize = 1024;
+constexpr int MinFloorTilesToBakeLight = 2;
+constexpr size_t FloorTilesPerLightBufferSize = 96;
+constexpr size_t FloorTilesCachePerLightLevel = 32;
+constexpr size_t FloorBufferNumLightingLevels = NumLightingLevels
+#ifdef DEBUG_
+    + 1
+#endif
+    ;
+
 struct FloorTilesBufferEntry {
 	PointOf<int16_t> targetBufferPosition;
-	uint32_t id;
+	uint16_t levelCelBlock;
 
-	FloorTilesBufferEntry(PointOf<int16_t> position,
-	    uint16_t levelCelBlock,
-	    uint8_t lightTableIndex)
-	    : targetBufferPosition(position)
-	    , id((levelCelBlock << 8) | lightTableIndex)
+	bool operator<(const FloorTilesBufferEntry &other) const
 	{
+		return levelCelBlock < other.levelCelBlock;
 	}
-
-	[[nodiscard]] LevelCelBlock levelCelBlock() const { return { static_cast<uint16_t>(id >> 8) }; }
-	[[nodiscard]] uint8_t lightTableIndex() const { return static_cast<uint8_t>(id); }
 };
 
-void DrawIdenticalFloorTiles(const Surface &out, FloorTilesBufferEntry *begin, FloorTilesBufferEntry *end)
+struct FloorTilesBuffer {
+	std::array<StaticVector<FloorTilesBufferEntry, FloorTilesPerLightBufferSize>, FloorBufferNumLightingLevels> perLightLevel;
+
+	void add(PointOf<int16_t> position,
+	    uint16_t levelCelBlock,
+	    uint8_t lightTableIndex)
+	{
+		perLightLevel[lightTableIndex].emplace_back(FloorTilesBufferEntry { position, levelCelBlock });
+	}
+};
+
+struct PerLightCacheEntry {
+	uint16_t levelCelBlock;
+	std::array<uint8_t, DunFrameWidth * DunFrameHeight> src;
+	bool operator<(const PerLightCacheEntry &other) const
+	{
+		return levelCelBlock < other.levelCelBlock;
+	}
+};
+using PerLightCacheEntries = StaticVector<PerLightCacheEntry, FloorTilesCachePerLightLevel>;
+std::array<PerLightCacheEntries, FloorBufferNumLightingLevels> PerLightCache;
+
+const uint8_t *GetCachedTile(const PerLightCacheEntries &cacheEntries, uint16_t levelCelBlock)
 {
-	if (begin == end) return;
-	const LevelCelBlock levelCelBlock = begin->levelCelBlock();
-	const uint8_t lightTableIndex = begin->lightTableIndex();
-	const uint8_t *lightTable =
+	const auto *it = std::lower_bound(cacheEntries.begin(), cacheEntries.end(), levelCelBlock, [](const PerLightCacheEntry &a, uint16_t levelCelBlock) {
+		return a.levelCelBlock < levelCelBlock;
+	});
+	return it != cacheEntries.end() && it->levelCelBlock == levelCelBlock ? it->src.data() : nullptr;
+	// const auto it = c_find_if(cacheEntries, [&](const auto &entry) { return entry.levelCelBlock == levelCelBlock; });
+	// return it != cacheEntries.end() ? it->src.data() : nullptr;
+};
+
+const uint8_t *GetLightTableFromIndex(uint8_t lightTableIndex)
+{
+return
 #ifdef _DEBUG
-	    lightTableIndex == NumLightingLevels + 1
+	    lightTableIndex == NumLightingLevels
 	    ? GetPauseTRN()
 	    :
 #endif
 	    LightTables[lightTableIndex].data();
-	if (end - begin < MinFloorTileToBakeLight || IsFullyDark(lightTable) || IsFullyLit(lightTable)) {
+}
+
+void DrawIdenticalFloorTiles(const Surface &out, uint8_t lightTableIndex, FloorTilesBufferEntry *begin, FloorTilesBufferEntry *end,
+    const uint8_t *cache)
+{
+	const LevelCelBlock levelCelBlock { begin->levelCelBlock };
+	if (cache != nullptr) {
+		const TileType type = levelCelBlock.type();
+		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
+			RenderFullyLitOpaqueTile(type, out, it->targetBufferPosition, cache);
+		}
+		return;
+	}
+
+	const uint8_t *lightTable = GetLightTableFromIndex(lightTableIndex);
+	if (end - begin < MinFloorTilesToBakeLight) {
 		for (FloorTilesBufferEntry *it = begin; it != end; ++it) {
 			RenderTile(out, it->targetBufferPosition, levelCelBlock, MaskType::Solid, lightTable);
 		}
@@ -833,24 +879,112 @@ void DrawIdenticalFloorTiles(const Surface &out, FloorTilesBufferEntry *begin, F
 	}
 }
 
-void DrawFloorBuffer(const Surface &out,
-    StaticVector<FloorTilesBufferEntry, FloorTilesBufferSize> &buffer)
+StaticVector<uint16_t, FloorTilesCachePerLightLevel>
+GetMostFrequentCelBlocksFromSortedBuffer(StaticVector<FloorTilesBufferEntry, FloorTilesPerLightBufferSize> &buffer)
 {
-	if (buffer.empty()) return;
-	std::stable_sort(buffer.begin(), buffer.end(), [](const FloorTilesBufferEntry &a, const FloorTilesBufferEntry &b) {
-		return a.id < b.id;
-	});
-	uint32_t prevId = buffer[0].id;
+	struct Entry {
+		uint16_t value;
+		size_t count;
+		bool operator<(const Entry &other) const { return count < other.count; }
+	};
+
+	std::priority_queue<Entry, StaticVector<Entry, FloorTilesCachePerLightLevel>> topK;
 	size_t prevBegin = 0;
+	uint16_t prevLevelCelBlock = buffer[0].levelCelBlock;
 	for (size_t i = 1; i < buffer.size(); ++i) {
-		const uint32_t id = buffer[i].id;
-		if (prevId != id) {
-			DrawIdenticalFloorTiles(out, buffer.begin() + prevBegin, buffer.begin() + i);
-			prevId = id;
+		const uint16_t levelCelBlock = buffer[i].levelCelBlock;
+		if (prevLevelCelBlock != levelCelBlock) {
+			const size_t count = i - prevBegin;
+			if (topK.size() < FloorTilesCachePerLightLevel || count > topK.top().count) {
+				if (topK.size() == FloorTilesCachePerLightLevel) topK.pop();
+				topK.push(Entry { prevLevelCelBlock, count });
+			}
+			prevLevelCelBlock = levelCelBlock;
 			prevBegin = i;
 		}
 	}
-	DrawIdenticalFloorTiles(out, buffer.begin() + prevBegin, buffer.end());
+	if (prevBegin != buffer.size()) {
+		const size_t count = buffer.size() - prevBegin;
+		if (topK.size() < FloorTilesCachePerLightLevel || count > topK.top().count) {
+			if (topK.size() == FloorTilesCachePerLightLevel) topK.pop();
+			topK.push(Entry { prevLevelCelBlock, count });
+		}
+	}
+	StaticVector<uint16_t, FloorTilesCachePerLightLevel> result;
+	while (!topK.empty()) {
+		result.emplace_back(topK.top().value);
+		topK.pop();
+	}
+	return result;
+}
+
+void DrawFloorBuffer(const Surface &out, uint8_t lightTableIndex, FloorTilesBuffer &perLightBuffers)
+{
+	StaticVector<FloorTilesBufferEntry, FloorTilesPerLightBufferSize> &buffer = perLightBuffers.perLightLevel[lightTableIndex];
+	if (buffer.empty()) return;
+	std::stable_sort(buffer.begin(), buffer.end());
+	const StaticVector<uint16_t, FloorTilesCachePerLightLevel> mostFrequentCelBlocks = GetMostFrequentCelBlocksFromSortedBuffer(buffer);
+
+	auto &cacheEntries = PerLightCache[lightTableIndex];
+	if (!cacheEntries.empty()) {
+		uint16_t prevLevelCelBlock = buffer[0].levelCelBlock;
+		size_t prevBegin = 0;
+		for (size_t i = 1; i < buffer.size();) {
+			const uint16_t levelCelBlock = buffer[i].levelCelBlock;
+			if (prevLevelCelBlock != levelCelBlock) {
+				if (const auto *src = GetCachedTile(cacheEntries, prevLevelCelBlock); src != nullptr) {
+					for (auto *it = buffer.begin() + prevBegin; it != buffer.begin() + i; ++it) {
+						RenderFullyLitOpaqueTile(LevelCelBlock { prevLevelCelBlock }.type(), out, it->targetBufferPosition, src);
+					}
+					buffer.erase(buffer.begin() + prevBegin, buffer.begin() + i);
+					prevLevelCelBlock = levelCelBlock;
+					prevBegin = i;
+					continue;
+				}
+				prevLevelCelBlock = levelCelBlock;
+				prevBegin = i;
+			}
+			++i;
+		}
+		if (prevBegin != buffer.size()) {
+			const uint16_t prevLevelCelBlock = buffer[prevBegin].levelCelBlock;
+			if (const auto *src = GetCachedTile(cacheEntries, prevLevelCelBlock); src != nullptr) {
+				for (auto *it = buffer.begin() + prevBegin; it != buffer.end(); ++it) {
+					RenderFullyLitOpaqueTile(LevelCelBlock { prevLevelCelBlock }.type(), out, it->targetBufferPosition, src);
+				}
+				buffer.erase(buffer.begin() + prevBegin, buffer.end());
+			}
+		}
+	}
+
+	cacheEntries.erase(std::remove_if(cacheEntries.begin(), cacheEntries.end(), [&](auto &entry) {
+		return std::find(mostFrequentCelBlocks.begin(), mostFrequentCelBlocks.end(), entry.levelCelBlock) == mostFrequentCelBlocks.end();
+	}),
+	    cacheEntries.end());
+	c_sort(cacheEntries);
+	for (const uint16_t levelCelBlock : mostFrequentCelBlocks) {
+		if (GetCachedTile(cacheEntries, levelCelBlock) == nullptr) {
+			auto &cacheEntry = cacheEntries.emplace_back();
+			cacheEntry.levelCelBlock = levelCelBlock;
+			DunTileApplyTrans(LevelCelBlock { levelCelBlock }, cacheEntry.src.data(), GetLightTableFromIndex(lightTableIndex));
+		}
+	}
+
+	uint16_t prevLevelCelBlock = buffer[0].levelCelBlock;
+	size_t prevBegin = 0;
+	for (size_t i = 1; i < buffer.size(); ++i) {
+		const uint16_t levelCelBlock = buffer[i].levelCelBlock;
+		if (prevLevelCelBlock != levelCelBlock) {
+			DrawIdenticalFloorTiles(out, lightTableIndex, buffer.begin() + prevBegin, buffer.begin() + i,
+				GetCachedTile(cacheEntries, prevLevelCelBlock));
+			prevLevelCelBlock = levelCelBlock;
+			prevBegin = i;
+		}
+	}
+	if (prevBegin != buffer.size()) {
+		DrawIdenticalFloorTiles(out, lightTableIndex, buffer.begin() + prevBegin, buffer.end(),
+		    GetCachedTile(cacheEntries, buffer[prevBegin].levelCelBlock));
+	}
 	buffer.clear();
 }
 
@@ -864,7 +998,7 @@ void DrawFloorBuffer(const Surface &out,
  */
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
-	StaticVector<FloorTilesBufferEntry, FloorTilesBufferSize> buffer;
+	FloorTilesBuffer buffer;
 	PointOf<int16_t> position = targetBufferPosition;
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; ++j) {
@@ -875,16 +1009,30 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 				const uint8_t lightTableIndex =
 #ifdef _DEBUG
 				    DebugPath && MyPlayer->IsPositionInPath(tilePosition)
-				    ? NumLightingLevels + 1
+				    ? NumLightingLevels
 				    :
 #endif
 				    dLight[tilePosition.x][tilePosition.y];
-				if (buffer.size() + 2 >= FloorTilesBufferSize) DrawFloorBuffer(out, buffer);
-				if (const uint16_t pieceId = DPieceMicros[levelPieceId].mt[0].data; pieceId != 0) {
-					buffer.emplace_back(position, pieceId, lightTableIndex);
-				}
-				if (const uint16_t pieceId = DPieceMicros[levelPieceId].mt[1].data; pieceId != 0) {
-					buffer.emplace_back(position + Displacement { TILE_WIDTH / 2, 0 }, pieceId, lightTableIndex);
+
+				const auto *lightTable = GetLightTableFromIndex(lightTableIndex);
+				if (IsFullyLit(lightTable) || IsFullyDark(lightTable)) {
+					// Fully lit / dark light tables do not need baked light caching, render them directly:
+					if (const LevelCelBlock levelCelBlock = DPieceMicros[levelPieceId].mt[0]; levelCelBlock.hasValue()) {
+						RenderTile(out, position, levelCelBlock, MaskType::Solid, lightTable);
+					}
+					if (const LevelCelBlock levelCelBlock = DPieceMicros[levelPieceId].mt[1]; levelCelBlock.hasValue()) {
+						RenderTile(out, position + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock, MaskType::Solid, lightTable);
+					}
+				} else {
+					if (buffer.perLightLevel[lightTableIndex].size() + 2 > FloorTilesPerLightBufferSize) {
+						DrawFloorBuffer(out, lightTableIndex, buffer);
+					}
+					if (const LevelCelBlock levelCelBlock = DPieceMicros[levelPieceId].mt[0]; levelCelBlock.hasValue()) {
+						buffer.add(position, levelCelBlock.data, lightTableIndex);
+					}
+					if (const LevelCelBlock levelCelBlock = DPieceMicros[levelPieceId].mt[1]; levelCelBlock.hasValue()) {
+						buffer.add(position + Displacement { TILE_WIDTH / 2, 0 }, levelCelBlock.data, lightTableIndex);
+					}
 				}
 			}
 			tilePosition += Direction::East;
@@ -907,7 +1055,9 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			position.x -= TILE_WIDTH / 2;
 		}
 	}
-	DrawFloorBuffer(out, buffer);
+	for (uint8_t lightTableIndex = 0; lightTableIndex < FloorBufferNumLightingLevels; ++lightTableIndex) {
+		DrawFloorBuffer(out, lightTableIndex, buffer);
+	}
 }
 
 [[nodiscard]] DVL_ALWAYS_INLINE bool IsWall(Point position)

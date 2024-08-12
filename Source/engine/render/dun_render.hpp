@@ -255,7 +255,6 @@ DVL_ALWAYS_INLINE void RenderFullyLitOpaqueTile(TileType tile, const Surface &ou
 	if (clip.width <= 0 || clip.height <= 0) return;
 	uint8_t *dst = out.at(static_cast<int>(position.x + clip.left), static_cast<int>(position.y - clip.bottom));
 	const uint16_t dstPitch = out.pitch();
-	// RenderTileType<LightType::FullyLit, /*Transparent=*/false>(tile, dst, dstPitch, src, nullptr, clip);
 
 	// Doesn't matter what `FullyLitLightTable` light table points to, as long as it's not `nullptr`.
 	uint8_t *fullyLitBefore = FullyLitLightTable;
