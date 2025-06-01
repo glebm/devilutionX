@@ -5,6 +5,9 @@
 
 #include <SDL.h>
 
+#define NANOFLANN_NO_THREADS
+#include <nanoflann.hpp>
+
 namespace devilution {
 
 // This array is read from a lot on every frame.
@@ -53,22 +56,66 @@ RGB BlendColors(const SDL_Color &a, const SDL_Color &b)
 	};
 }
 
+// Wraps the palette in a interface usable with nanoflann kd-tree library.
+class NanoflannPaletteWrapper {
+public:
+	using coord_t = uint8_t;
+	explicit NanoflannPaletteWrapper(const SDL_Color *palette)
+	    : palette_(palette)
+	{
+	}
+
+	// NOLINTNEXTLINE(readability-identifier-naming): nanoflann interface
+	[[nodiscard]] size_t kdtree_get_point_count() const { return 256; }
+
+	// NOLINTNEXTLINE(readability-identifier-naming): nanoflann interface
+	[[nodiscard]] uint8_t kdtree_get_pt(size_t idx, size_t dim) const
+	{
+		switch (dim) {
+		case 0:
+			return palette_[idx].r;
+		case 1:
+			return palette_[idx].g;
+		default:
+			return palette_[idx].b;
+		}
+	}
+
+	template <class BBOX>
+	// NOLINTNEXTLINE(readability-identifier-naming): nanoflann interface
+	bool kdtree_get_bbox(BBOX &) const
+	{
+		return false;
+	}
+
+private:
+	const SDL_Color *palette_;
+};
+
 } // namespace
 
 void GenerateBlendedLookupTable(SDL_Color palette[256], int skipFrom, int skipTo)
 {
+
+	const NanoflannPaletteWrapper paletteData { palette };
+	const nanoflann::KDTreeSingleIndexAdaptor<
+	    nanoflann::L2_Simple_Adaptor<uint8_t, NanoflannPaletteWrapper>,
+	    NanoflannPaletteWrapper, /*DIM=*/3>
+	    index { /*dimensionality=*/3, /*inputData=*/paletteData,
+		    nanoflann::KDTreeSingleIndexAdaptorParams { /*leaf_max_size=*/32 } };
+
 	for (unsigned i = 0; i < 256; i++) {
-		for (unsigned j = 0; j < 256; j++) {
-			if (i == j) { // No need to calculate transparency between 2 identical colors
-				paletteTransparencyLookup[i][j] = j;
-				continue;
-			}
-			if (i > j) { // Half the blends will be mirror identical ([i][j] is the same as [j][i]), so simply copy the existing combination.
-				paletteTransparencyLookup[i][j] = paletteTransparencyLookup[j][i];
-				continue;
-			}
-			const uint8_t best = FindBestMatchForColor(palette, BlendColors(palette[i], palette[j]), skipFrom, skipTo);
-			paletteTransparencyLookup[i][j] = best;
+		paletteTransparencyLookup[i][i] = i;
+		for (unsigned j = 0; j < i; j++) {
+			uint8_t bestResult;
+			uint32_t bestResultDistSqr;
+			nanoflann::KNNResultSet<uint32_t, uint8_t> resultSet(1);
+			resultSet.init(&bestResult, &bestResultDistSqr);
+
+			const RGB q = BlendColors(palette[i], palette[j]);
+			uint8_t query[3] { q.r, q.g, q.b };
+			index.findNeighbors(resultSet, query);
+			paletteTransparencyLookup[i][j] = paletteTransparencyLookup[j][i] = bestResult;
 		}
 	}
 
