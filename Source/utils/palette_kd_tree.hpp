@@ -71,12 +71,22 @@ struct PaletteKdTreeNode {
 		return GetColorComponent<Coord>(color);
 	}
 
-	[[nodiscard]] PaletteKdTreeNode<0> &leafForColor(const SDL_Color &color)
+	[[nodiscard]] uint8_t leafIndexForColor(const SDL_Color &color, size_t result = 0)
+	{
+		const bool isLeft = getColorCoordinate(color) < pivot;
+		if constexpr (RemainingDepth == 1) {
+			return (2 * result) + (isLeft ? 0 : 1);
+		} else {
+			return (2 * child(isLeft).leafIndexForColor(color, result)) + (isLeft ? 0 : 1);
+		}
+	}
+
+	[[nodiscard]] PaletteKdTreeNode<0> &leafByIndex(uint8_t index)
 	{
 		if constexpr (RemainingDepth == 1) {
-			return child(/*isLeft=*/getColorCoordinate(color) < pivot);
+			return child(index % 2 == 0);
 		} else {
-			return child(/*isLeft=*/getColorCoordinate(color) < pivot).leafForColor(color);
+			return child(index % 2 == 0).leafByIndex(index / 2);
 		}
 	}
 };
@@ -86,7 +96,11 @@ struct PaletteKdTreeNode {
  */
 template <>
 struct PaletteKdTreeNode</*RemainingDepth=*/0> {
-	StaticVector<uint8_t, 256> values;
+	// We use inclusive indices to allow for representing [0, 255] full range.
+	// An empty node is represented as [1, 0].
+	uint8_t valuesBegin;
+	uint8_t valuesEndInclusive;
+	[[nodiscard]] bool empty() const { return valuesBegin > valuesEndInclusive; }
 };
 
 /**
@@ -97,14 +111,30 @@ struct PaletteKdTreeNode</*RemainingDepth=*/0> {
 class PaletteKdTree {
 private:
 	using RGB = std::array<uint8_t, 3>;
-
+	static constexpr unsigned NumLeaves = 1U << PaletteKdTreeDepth;
 public:
 	explicit PaletteKdTree(const SDL_Color palette[256])
 	    : palette_(palette)
 	{
 		populatePivots();
+		StaticVector<uint8_t, 256> leafValues[NumLeaves];
 		for (unsigned i = 0; i < 256; ++i) {
-			tree_.leafForColor(palette[i]).values.emplace_back(i);
+			leafValues[tree_.leafIndexForColor(palette[i])].emplace_back(i);
+		}
+
+		size_t totalLen = 0;
+		for (uint8_t leafIndex = 0; leafIndex < NumLeaves; ++leafIndex) {
+			PaletteKdTreeNode<0> &leaf = tree_.leafByIndex(leafIndex);
+			std::span<const uint8_t> values = leafValues[leafIndex];
+			if (values.empty()) {
+				leaf.valuesBegin = 1;
+				leaf.valuesEndInclusive = 0;
+			} else {
+				leaf.valuesBegin = totalLen;
+				leaf.valuesEndInclusive = totalLen - 1 + values.size();
+				std::copy(values.begin(), values.end(), values_.data() + totalLen);
+				totalLen += values.size();
+			}
 		}
 	}
 
@@ -211,7 +241,8 @@ private:
 
 	void checkLeaf(const PaletteKdTreeNode<0> &leaf, const RGB &rgb, uint32_t &bestDiff, uint8_t &best) const
 	{
-		for (const uint8_t paletteIndex : leaf.values) {
+		for (size_t i = leaf.valuesBegin; i <= leaf.valuesEndInclusive; ++i) {
+			const uint8_t paletteIndex = values_[i];
 			const uint32_t diff = GetColorDistance(palette_[paletteIndex], rgb);
 			if (diff < bestDiff) {
 				best = paletteIndex;
@@ -222,6 +253,7 @@ private:
 
 	const SDL_Color *palette_;
 	PaletteKdTreeNode<PaletteKdTreeDepth> tree_;
+	std::array<uint8_t, 256> values_;
 };
 
 } // namespace devilution
