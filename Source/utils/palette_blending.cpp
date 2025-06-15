@@ -59,7 +59,7 @@ RGB BlendColors(const SDL_Color &a, const SDL_Color &b)
 // Wraps the palette in a interface usable with nanoflann kd-tree library.
 class NanoflannPaletteWrapper {
 public:
-	using coord_t = uint8_t;
+	using coord_t = int16_t;
 	explicit NanoflannPaletteWrapper(const SDL_Color *palette)
 	    : palette_(palette)
 	{
@@ -69,7 +69,7 @@ public:
 	[[nodiscard]] size_t kdtree_get_point_count() const { return 256; }
 
 	// NOLINTNEXTLINE(readability-identifier-naming): nanoflann interface
-	[[nodiscard]] uint8_t kdtree_get_pt(size_t idx, size_t dim) const
+	[[nodiscard]] int16_t kdtree_get_pt(size_t idx, size_t dim) const
 	{
 		switch (dim) {
 		case 0:
@@ -99,7 +99,7 @@ void GenerateBlendedLookupTable(SDL_Color palette[256], int skipFrom, int skipTo
 
 	const NanoflannPaletteWrapper paletteData { palette };
 	const nanoflann::KDTreeSingleIndexAdaptor<
-	    nanoflann::L2_Simple_Adaptor<uint8_t, NanoflannPaletteWrapper>,
+	    nanoflann::L2_Simple_Adaptor<int16_t, NanoflannPaletteWrapper>,
 	    NanoflannPaletteWrapper, /*DIM=*/3>
 	    index { /*dimensionality=*/3, /*inputData=*/paletteData,
 		    nanoflann::KDTreeSingleIndexAdaptorParams { /*leaf_max_size=*/32 } };
@@ -107,13 +107,13 @@ void GenerateBlendedLookupTable(SDL_Color palette[256], int skipFrom, int skipTo
 	for (unsigned i = 0; i < 256; i++) {
 		paletteTransparencyLookup[i][i] = i;
 		for (unsigned j = 0; j < i; j++) {
-			uint8_t bestResult;
-			uint32_t bestResultDistSqr;
-			nanoflann::KNNResultSet<uint32_t, uint8_t> resultSet(1);
+			uint32_t bestResult;
+			int16_t bestResultDistSqr;
+			nanoflann::KNNResultSet<int16_t, uint32_t> resultSet(1);
 			resultSet.init(&bestResult, &bestResultDistSqr);
 
 			const RGB q = BlendColors(palette[i], palette[j]);
-			uint8_t query[3] { q.r, q.g, q.b };
+			int16_t query[3] { q.r, q.g, q.b };
 			index.findNeighbors(resultSet, query);
 			paletteTransparencyLookup[i][j] = paletteTransparencyLookup[j][i] = bestResult;
 		}
