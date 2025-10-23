@@ -881,10 +881,7 @@ if(DEVILUTIONX_SCREENSHOT_FORMAT STREQUAL DEVILUTIONX_SCREENSHOT_FORMAT_PNG)
     tl
     libdevilutionx_surface
   )
-  if(USE_SDL3)
-    target_link_dependencies(libdevilutionx_surface_to_png PUBLIC SDL3_image::SDL3_image)
-    target_compile_definitions(libdevilutionx_surface_to_png INTERFACE USE_SDL3)
-  else()
+  if(NOT USE_SDL3)
     target_link_dependencies(libdevilutionx_surface_to_png PUBLIC SDL2::SDL2_image)
   endif()
 endif()
@@ -987,10 +984,8 @@ if(SCREEN_READER_INTEGRATION)
   endif()
 endif()
 
-if(USE_SDL1)
+if(USE_SDL1 OR USE_SDL3)
   # No need for SDL_image
-elseif(USE_SDL3)
-  target_link_libraries(libdevilutionx PUBLIC SDL3_image::SDL3_image)
 else()
   target_link_libraries(libdevilutionx PUBLIC SDL2::SDL2_image)
 endif()

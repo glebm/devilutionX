@@ -2,7 +2,7 @@
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_iostream.h>
-#include <SDL3_image/SDL_image.h>
+#include <SDL3/SDL_surface.h>
 #else
 #include <SDL.h>
 #endif
@@ -52,8 +52,7 @@ inline SDL_Surface *LoadPNG(const char *file)
 {
 	auto *rwops = OpenAssetAsSdlRwOps(file);
 #ifdef USE_SDL3
-	SDL_Surface *surface = IMG_LoadPNG_IO(rwops);
-	SDL_CloseIO(rwops);
+	SDL_Surface *surface = SDL_LoadPNG_IO(rwops, /*closeio=*/true);
 #else
 	SDL_Surface *surface = IMG_LoadPNG_RW(rwops);
 	SDL_RWclose(rwops);

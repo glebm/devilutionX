@@ -5,7 +5,7 @@
 #ifdef USE_SDL3
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_iostream.h>
-#include <SDL3_image/SDL_image.h>
+#include <SDL3/SDL_surface.h>
 #else
 #include <SDL.h>
 
@@ -26,7 +26,7 @@ tl::expected<void, std::string>
 WriteSurfaceToFilePng(const Surface &buf, SDL_IOStream *dst)
 {
 #ifdef USE_SDL3
-	const bool ok = IMG_SavePNG_IO(buf.surface, dst, /*closeio=*/true);
+	const bool ok = SDL_SavePNG_IO(buf.surface, dst, /*closeio=*/true);
 #else
 	const bool ok = IMG_SavePNG_RW(buf.surface, dst, /*freedst=*/1) == 0;
 #endif
