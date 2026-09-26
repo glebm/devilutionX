@@ -1559,7 +1559,7 @@ bool MonsterDelay(Monster &monster)
 
 void MonsterPetrified(Monster &monster)
 {
-	if (monster.hitPoints <= Fixed26_6::fromInt(0)) {
+	if (monster.hitPoints <= 0) {
 		dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
 		monster.isInvalid = true;
 	}
@@ -4051,7 +4051,7 @@ void M_StartKill(Monster &monster, const Player &player)
 
 void M_SyncStartKill(Monster &monster, Point position, const Player &player)
 {
-	if (monster.hitPoints == Fixed26_6::fromInt(0) || monster.mode == MonsterMode::Death) {
+	if (monster.hitPoints == 0 || monster.mode == MonsterMode::Death) {
 		return;
 	}
 
@@ -4672,7 +4672,7 @@ Monster *FindGolemForPlayer(const Player &player)
 			continue;
 		if (monster.goalVar3 != player.getId())
 			continue;
-		if (monster.hitPoints == Fixed26_6::fromInt(0))
+		if (monster.hitPoints == 0)
 			continue;
 		return &monster;
 	}
@@ -4810,14 +4810,14 @@ void SpawnGolem(const Player &player, Point position, uint8_t spellLevel)
 	// 1. Prefer MonsterIndex = PlayerIndex for vanilla compatibility
 	if (player.getId() < ReservedMonsterSlotsForGolems) {
 		Monster &reservedGolem = Monsters[player.getId()];
-		if (reservedGolem.position.tile == GolemHoldingCell || reservedGolem.hitPoints == Fixed26_6::fromInt(0))
+		if (reservedGolem.position.tile == GolemHoldingCell || reservedGolem.hitPoints == 0)
 			golem = &reservedGolem;
 	}
 	// 2. Use reserved slots, so additional Monsters can spawn
 	if (golem == nullptr) {
 		for (int i = 0; i < ReservedMonsterSlotsForGolems; i++) {
 			Monster &reservedGolem = Monsters[i];
-			if (reservedGolem.position.tile == GolemHoldingCell || reservedGolem.hitPoints == Fixed26_6::fromInt(0)) {
+			if (reservedGolem.position.tile == GolemHoldingCell || reservedGolem.hitPoints == 0) {
 				golem = &reservedGolem;
 				break;
 			}

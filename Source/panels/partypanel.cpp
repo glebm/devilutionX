@@ -211,7 +211,7 @@ void DrawPartyMemberInfoPanel(const Surface &out)
 		const PartySpriteOffset offsets = GetClassSpriteOffset(player._pClass);
 		Point offset = (player.isOnLevel(0)) ? offsets.inTownOffset : offsets.inDungeonOffset;
 
-		if (player._pHitPoints <= Fixed26_6::fromInt(0) && IsPlayerUnarmed(player))
+		if (player._pHitPoints <= 0 && IsPlayerUnarmed(player))
 			offset = offsets.isDeadOffset;
 
 		// Calculate the players portait position
@@ -244,7 +244,7 @@ void DrawPartyMemberInfoPanel(const Surface &out)
 		}
 
 		// Check to see if the player is dead and if so we draw a half transparent red rect over the portrait
-		if (player._pHitPoints <= Fixed26_6::fromInt(0)) {
+		if (player._pHitPoints <= 0) {
 			DrawHalfTransparentRectTo(
 			    frameSubregion,
 			    0, 0,
